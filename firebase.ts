@@ -1,6 +1,13 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "@firebase/auth";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile 
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Sua configuração do Firebase obtida no Console
@@ -17,7 +24,15 @@ const firebaseConfig = {
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 
-// Exporta as instâncias dos serviços para serem usadas no db.ts
-// getAuth(app) is the correct way to initialize Auth in modular v9
+// Exporta as instâncias dos serviços de forma singleton e as funções de autenticação re-exportadas para uso modular
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);
+
+// Re-export authentication functions to allow centralized access and resolve module resolution issues in various environments
+export { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile 
+};

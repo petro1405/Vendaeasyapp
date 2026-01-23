@@ -1,13 +1,6 @@
 
 // Use modular imports correctly for Firebase v9+
 import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile
-} from "@firebase/auth";
-import { 
   doc, 
   setDoc, 
   getDoc, 
@@ -20,7 +13,16 @@ import {
   updateDoc, 
   deleteDoc
 } from "firebase/firestore";
-import { auth, firestore } from "./firebase";
+// Correctly import auth instances and functions from the centralized firebase.ts to avoid module resolution conflicts
+import { 
+  auth, 
+  firestore,
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  updateProfile 
+} from "./firebase";
 import { Product, Customer, Sale, SaleItem, ShopInfo, Budget, BudgetItem, User } from './types';
 
 const COLLECTIONS = {
@@ -78,10 +80,12 @@ export const db = {
       
       return { success: true, message: 'Usuário cadastrado com sucesso no Firebase!' };
     } catch (error: any) {
+      console.error("Erro no registro:", error);
       let msg = error.message;
       if (error.code === 'auth/invalid-email') msg = 'Nome de usuário inválido para geração de credencial.';
       if (error.code === 'auth/email-already-in-use') msg = 'Este nome de usuário já está em uso.';
       if (error.code === 'auth/weak-password') msg = 'A senha deve ter pelo menos 6 caracteres.';
+      if (msg.includes("permissions")) msg = "Erro de Permissão no Firestore. Verifique se as regras do banco permitem escrita.";
       return { success: false, message: msg };
     }
   },
@@ -94,8 +98,13 @@ export const db = {
     return new Promise((resolve) => {
       onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
-          const userDoc = await getDoc(doc(firestore, COLLECTIONS.USERS, firebaseUser.uid));
-          resolve(userDoc.exists() ? (userDoc.data() as User) : null);
+          try {
+            const userDoc = await getDoc(doc(firestore, COLLECTIONS.USERS, firebaseUser.uid));
+            resolve(userDoc.exists() ? (userDoc.data() as User) : null);
+          } catch (e) {
+            console.error("Erro ao buscar perfil do usuário:", e);
+            resolve(null);
+          }
         } else {
           resolve(null);
         }
