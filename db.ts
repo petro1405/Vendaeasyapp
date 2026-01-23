@@ -1,6 +1,12 @@
 
-// Use modular imports correctly for Firebase v9+
 import { 
+  auth, 
+  firestore,
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile,
   doc, 
   setDoc, 
   getDoc, 
@@ -11,17 +17,7 @@ import {
   orderBy, 
   addDoc, 
   updateDoc, 
-  deleteDoc
-} from "firebase/firestore";
-// Correctly import auth instances and functions from the centralized firebase.ts to avoid module resolution conflicts
-import { 
-  auth, 
-  firestore,
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile 
+  deleteDoc 
 } from "./firebase";
 import { Product, Customer, Sale, SaleItem, ShopInfo, Budget, BudgetItem, User } from './types';
 
@@ -45,7 +41,6 @@ const DEFAULT_SHOP_INFO: ShopInfo = {
 };
 
 export const db = {
-  // --- AUTH ---
   login: async (email: string, pass: string): Promise<User | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
@@ -62,7 +57,6 @@ export const db = {
 
   registerUser: async (userData: any): Promise<{ success: boolean, message: string }> => {
     try {
-      // Limpar username de espaços e caracteres que invalidam o e-mail
       const sanitizedUsername = userData.username.trim().toLowerCase().replace(/\s+/g, '');
       const email = `${sanitizedUsername}@venda-easy.com`;
       
@@ -78,14 +72,14 @@ export const db = {
       await updateProfile(userCredential.user, { displayName: userData.name });
       await setDoc(doc(firestore, COLLECTIONS.USERS, userCredential.user.uid), newUser);
       
-      return { success: true, message: 'Usuário cadastrado com sucesso no Firebase!' };
+      return { success: true, message: 'Usuário cadastrado com sucesso!' };
     } catch (error: any) {
       console.error("Erro no registro:", error);
       let msg = error.message;
-      if (error.code === 'auth/invalid-email') msg = 'Nome de usuário inválido para geração de credencial.';
-      if (error.code === 'auth/email-already-in-use') msg = 'Este nome de usuário já está em uso.';
+      if (error.code === 'auth/invalid-email') msg = 'Nome de usuário inválido.';
+      if (error.code === 'auth/email-already-in-use') msg = 'Este usuário já existe.';
       if (error.code === 'auth/weak-password') msg = 'A senha deve ter pelo menos 6 caracteres.';
-      if (msg.includes("permissions")) msg = "Erro de Permissão no Firestore. Verifique se as regras do banco permitem escrita.";
+      if (msg.includes("permissions")) msg = "Sem permissão no banco de dados. Verifique as regras do Firestore.";
       return { success: false, message: msg };
     }
   },
@@ -102,7 +96,6 @@ export const db = {
             const userDoc = await getDoc(doc(firestore, COLLECTIONS.USERS, firebaseUser.uid));
             resolve(userDoc.exists() ? (userDoc.data() as User) : null);
           } catch (e) {
-            console.error("Erro ao buscar perfil do usuário:", e);
             resolve(null);
           }
         } else {
