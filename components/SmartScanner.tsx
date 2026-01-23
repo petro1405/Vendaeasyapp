@@ -59,25 +59,23 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
     const ctx = canvas.getContext('2d');
     
     if (ctx) {
-      // Desenha a imagem centralizada para melhor foco
+      // Desenha a imagem para análise
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
 
       try {
-        // Initialize GenAI with the API key from environment variables
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        const prompt = mode === 'sale' 
-          ? "Identify exactly what construction product is in this image. Focus on the brand and specifications (e.g., 'Tijolo 8 furos', 'Argamassa Votoran AC-I 20kg'). Return a structured JSON."
-          : "Analyze this item for store inventory. Provide the full product name and the most appropriate construction category. Return JSON.";
+        const systemPrompt = mode === 'sale' 
+          ? "Você é um especialista em materiais de construção. Identifique o produto na imagem, incluindo marca e medida (ex: 'Cimento CP-II Votoran 50kg')."
+          : "Analise este item de estoque. Informe o nome completo do produto e a categoria de construção mais adequada.";
 
-        // Use 'gemini-3-flash-preview' for vision tasks as per guidelines
         const response: GenerateContentResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-              { text: prompt }
+              { text: systemPrompt + " Retorne obrigatoriamente um JSON." }
             ]
           },
           config: {
@@ -87,27 +85,26 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
               properties: {
                 name: { 
                   type: Type.STRING,
-                  description: "Full name and specifications of the identified product."
+                  description: "Nome completo do produto e especificações."
                 },
                 category: { 
                   type: Type.STRING,
-                  description: "Construction category (e.g., Hidráulica, Elétrica, Tintas, Básico)."
+                  description: "Categoria de construção (ex: Hidráulica, Elétrica, Tintas)."
                 },
                 confidence: { 
                   type: Type.NUMBER,
-                  description: "A value between 0 and 1 indicating identification certainty."
+                  description: "Nível de confiança de 0 a 1."
                 }
               },
-              required: ["name"]
+              required: ["name", "category", "confidence"]
             }
           }
         });
 
-        // Use the .text property directly to extract output text
         const responseText = response.text;
         
         if (!responseText) {
-          throw new Error("Modelo não retornou texto.");
+          throw new Error("Resposta vazia da IA.");
         }
 
         const result = JSON.parse(responseText.trim());
@@ -116,15 +113,15 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
           onDetected({
             name: result.name,
             category: result.category || 'Geral',
-            confidence: result.confidence || 0.85
+            confidence: result.confidence || 0.8
           });
           onClose();
         } else {
-          setError("Produto não reconhecido claramente. Tente focar na etiqueta ou embalagem.");
+          setError("Não consegui ler o rótulo. Tente aproximar mais a câmera.");
         }
       } catch (err) {
-        console.error("Scanner Error:", err);
-        setError("Erro na análise de IA. Verifique sua conexão e tente novamente.");
+        console.error("AI Analysis Error:", err);
+        setError("Erro na conexão com a IA. Tente focar melhor no produto.");
       } finally {
         setIsAnalyzing(false);
       }
@@ -143,40 +140,42 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
         />
         <canvas ref={canvasRef} className="hidden" />
         
-        {/* Overlay do Scanner */}
+        {/* Scanner overlay */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="w-64 h-64 border-2 border-white/20 rounded-3xl relative">
-            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-indigo-500 rounded-tl-xl"></div>
-            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-indigo-500 rounded-tr-xl"></div>
-            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-indigo-500 rounded-bl-xl"></div>
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-indigo-500 rounded-br-xl"></div>
+          <div className="w-72 h-72 border-2 border-white/10 rounded-3xl relative">
+            <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-indigo-500 rounded-tl-2xl"></div>
+            <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-indigo-500 rounded-tr-2xl"></div>
+            <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-indigo-500 rounded-bl-2xl"></div>
+            <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-indigo-500 rounded-br-2xl"></div>
             
             {isAnalyzing && (
-              <div className="absolute inset-0 bg-indigo-500/10 flex items-center justify-center">
-                <div className="w-full h-1 bg-indigo-500 absolute top-0 animate-[scan_2s_ease-in-out_infinite]"></div>
-                <Sparkles className="text-white animate-pulse" size={32} />
+              <div className="absolute inset-0 bg-indigo-500/5 flex items-center justify-center">
+                <div className="w-full h-1 bg-indigo-400 shadow-[0_0_15px_rgba(129,140,248,0.8)] absolute top-0 animate-[scan_1.5s_ease-in-out_infinite]"></div>
+                <Sparkles className="text-white/40 animate-pulse" size={40} />
               </div>
             )}
           </div>
-          <p className="mt-8 text-white/70 text-xs font-black uppercase tracking-[0.2em] text-center px-8">
-            {isAnalyzing ? "Processando Imagem..." : "Aponte para a embalagem ou rótulo"}
+          <p className="mt-8 text-white/50 text-[10px] font-black uppercase tracking-[0.3em] text-center px-10 leading-relaxed">
+            {isAnalyzing ? "Analisando com Inteligência Artificial..." : "Posicione o produto ou código de barras no centro"}
           </p>
         </div>
 
-        {/* Botão de Fechar */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 p-3 bg-black/40 text-white rounded-full backdrop-blur-md active:scale-90 transition-all"
+          className="absolute top-6 right-6 p-3 bg-black/40 text-white rounded-full backdrop-blur-md active:scale-90 transition-all border border-white/10"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
       {error && (
-        <div className="mt-4 bg-red-600/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4">
+        <div className="mt-4 bg-red-600/90 backdrop-blur-lg text-white px-6 py-4 rounded-3xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 shadow-xl border border-red-400/20">
           <AlertCircle size={20} />
-          <span className="text-sm font-bold">{error}</span>
-          <button onClick={startCamera} className="ml-2 underline text-[10px] uppercase font-black">Tentar Novamente</button>
+          <div className="flex flex-col">
+            <span className="text-xs font-black uppercase tracking-wider">Falha na Identificação</span>
+            <span className="text-[10px] opacity-80">{error}</span>
+          </div>
+          <button onClick={startCamera} className="ml-4 bg-white/10 p-2 rounded-xl active:scale-90 transition-all"><RefreshCw size={16} /></button>
         </div>
       )}
 
@@ -184,16 +183,16 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
         <button 
           onClick={captureAndAnalyze}
           disabled={isAnalyzing}
-          className="flex-1 bg-white text-indigo-600 font-black py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+          className="flex-1 bg-white text-indigo-600 font-black py-5 rounded-[2rem] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-xs disabled:opacity-50 disabled:scale-100"
         >
-          {isAnalyzing ? <RefreshCw className="animate-spin" size={20} /> : <Camera size={20} />}
-          Identificar Produto
+          {isAnalyzing ? <RefreshCw className="animate-spin" size={18} /> : <Camera size={18} />}
+          Identificar Agora
         </button>
       </div>
 
       <style>{`
         @keyframes scan {
-          0%, 100% { top: 0%; opacity: 0; }
+          0%, 100% { top: 0%; opacity: 0.2; }
           50% { top: 100%; opacity: 1; }
         }
       `}</style>

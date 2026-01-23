@@ -1,6 +1,13 @@
-
+// Standard modular Firebase imports for version 9+
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile 
+} from "firebase/auth";
 import { 
   getFirestore, 
   doc, 
@@ -13,8 +20,8 @@ import {
   orderBy, 
   addDoc, 
   updateDoc, 
-  deleteDoc,
-  onSnapshot
+  deleteDoc, 
+  onSnapshot 
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -27,23 +34,20 @@ const firebaseConfig = {
   measurementId: "G-9YE8JZ77Z3"
 };
 
+// Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services using standard v9+ modular syntax
+// Initialize Firebase services using the initialized app
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);
 
-// Export Auth functions to be used throughout the application
+// Exporting modular functions to be used by the db.ts file
 export { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged, 
-  updateProfile 
-};
-
-// Export Firestore functions to be used throughout the application
-export { 
+  updateProfile,
   doc, 
   setDoc, 
   getDoc, 

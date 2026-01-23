@@ -9,7 +9,7 @@ import SalesHistory from './screens/SalesHistory.tsx';
 import Budgets from './screens/Budgets.tsx';
 import Settings from './screens/Settings.tsx';
 import Login from './screens/Login.tsx';
-import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon, Cloud, CloudCheck } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon, Cloud, Check } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -21,7 +21,6 @@ const App: React.FC = () => {
   const [isSynced, setIsSynced] = useState(false);
 
   useEffect(() => {
-    let unsubUser: any;
     let unsubProds: any;
     let unsubSales: any;
     let unsubBudgets: any;
@@ -115,9 +114,9 @@ const App: React.FC = () => {
             VendaEasy
           </h1>
           <div className="flex items-center gap-1 mt-0.5">
-            {isSynced ? <CloudCheck size={10} className="text-green-400" /> : <Cloud size={10} className="text-indigo-300 animate-pulse" />}
+            {isSynced ? <Check size={10} className="text-green-400" /> : <Cloud size={10} className="text-indigo-300 animate-pulse" />}
             <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200">
-              {isSynced ? 'Nuvem Online' : 'Sincronizando...'}
+              {isSynced ? 'Estoque na Nuvem' : 'Sincronizando...'}
             </span>
           </div>
         </div>
