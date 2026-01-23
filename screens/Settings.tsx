@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ShopInfo, User as UserType } from '../types';
-import { Store, Save, Upload, Phone, MapPin, FileText, CheckCircle2, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, MessageSquare } from 'lucide-react';
+import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor } from 'lucide-react';
 
 interface SettingsProps {
   onUpdate: () => void;
@@ -10,35 +10,57 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
-  const [info, setInfo] = useState<ShopInfo>(db.getShopInfo());
+  const [info, setInfo] = useState<ShopInfo | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [registeredUsers, setRegisteredUsers] = useState<UserType[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const currentUser = db.getAuthUser();
+  const [loading, setLoading] = useState(true);
+
   const isAdmin = currentUser?.role === 'admin';
-  const registeredUsers = isAdmin ? db.getUsers() : [];
+
+  // Fix: Correct asynchronous loading of configuration data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const [shopInfo, user] = await Promise.all([
+        db.getShopInfo(),
+        db.getAuthUser()
+      ]);
+      setInfo(shopInfo);
+      setCurrentUser(user);
+      if (user?.role === 'admin') {
+        // Fix: db.getUsers now exists in db.ts
+        const users = await db.getUsers();
+        setRegisteredUsers(users);
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !info) return;
     const { name, value } = e.target;
-    setInfo(prev => ({ ...prev, [name]: value }));
+    setInfo(prev => prev ? ({ ...prev, [name]: value }) : null);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !info) return;
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setInfo(prev => ({ ...prev, logo: reader.result as string }));
+        setInfo(prev => prev ? ({ ...prev, logo: reader.result as string }) : null);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin || !info) return;
     setStatus('saving');
-    db.saveShopInfo(info);
+    await db.saveShopInfo(info);
     
     setTimeout(() => {
       setStatus('saved');
@@ -46,6 +68,14 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
       setTimeout(() => setStatus('idle'), 2000);
     }, 600);
   };
+
+  if (loading || !info) {
+    return (
+      <div className="flex justify-center p-20">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-6">
@@ -234,7 +264,7 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
             {status === 'saving' ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : status === 'saved' ? (
-              <>Salvo com Sucesso <CheckCircle2 size={20} /></>
+              <>Salvo com Sucesso <Save size={20} /></>
             ) : (
               <>Salvar Configurações <Save size={20} /></>
             )}

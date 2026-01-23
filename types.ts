@@ -3,6 +3,7 @@ export interface User {
   username: string;
   name: string;
   role: 'admin' | 'vendedor';
+  uid?: string;
 }
 
 export interface ShopInfo {
@@ -17,7 +18,7 @@ export interface ShopInfo {
 }
 
 export interface Product {
-  id: number;
+  id: string | number;
   name: string;
   price: number;
   costPrice?: number;
@@ -39,12 +40,13 @@ export interface Sale {
   date: string;
   total: number;
   sellerUsername: string;
+  items?: SaleItem[];
 }
 
 export interface SaleItem {
   id: string;
   saleId: string;
-  productId: number;
+  productId: string | number;
   productName: string;
   quantity: number;
   unitPrice: number;
@@ -58,12 +60,13 @@ export interface Budget {
   total: number;
   validUntil: string;
   sellerUsername: string;
+  items?: BudgetItem[];
 }
 
 export interface BudgetItem {
   id: string;
   budgetId: string;
-  productId: number;
+  productId: string | number;
   productName: string;
   quantity: number;
   unitPrice: number;

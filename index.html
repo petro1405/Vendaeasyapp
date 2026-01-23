@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#4f46e5">
-    <title>VendaEasy - Construção</title>
+    <title>VendaEasy - Gestor de Vendas</title>
     
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="manifest.json">
@@ -37,8 +37,6 @@
         }
         
         .receipt-font { font-family: 'Courier Prime', monospace; }
-        
-        /* Ajuste para notch de celulares modernos */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
     <script type="importmap">
@@ -49,29 +47,18 @@
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "lucide-react": "https://esm.sh/lucide-react@0.473.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "firebase/": "https://esm.sh/firebase@^12.8.0/"
   }
 }
 </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-    <script>
-      // Registro do Service Worker para PWA simplificado
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          // Tentativa direta de registro. O navegador cuidará da política de mesma origem.
-          // Removido o uso de 'new URL()' que estava causando falhas em alguns ambientes de sandbox.
-          navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('Service Worker registrado!', reg.scope))
-            .catch(err => {
-              // Em ambientes de preview (iframes de origem diferente), o registro falha silenciosamente
-              console.warn('Aviso: Registro de Service Worker ignorado ou falhou. Isso é esperado em alguns ambientes de teste:', err.message);
-            });
-        });
-      }
-    </script>
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>

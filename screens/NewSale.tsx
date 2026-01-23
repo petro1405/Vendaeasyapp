@@ -7,16 +7,13 @@ import SmartScanner from '../components/SmartScanner';
 import { 
   User, 
   Search, 
-  ShoppingCart, 
   Plus, 
   Minus, 
-  Trash2, 
   ArrowRight, 
   CheckCircle2,
   ChevronLeft,
   FileText,
   CalendarClock,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   Flame,
@@ -40,7 +37,7 @@ enum SaleStep {
   FINISHED
 }
 
-const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, currentUser, onComplete, onBudgetComplete, onCancel }) => {
+const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, currentUser, onComplete, onBudgetComplete }) => {
   const [step, setStep] = useState<SaleStep>(SaleStep.SELECT_CUSTOMER);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -51,8 +48,8 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const [showFeatured, setShowFeatured] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Calculate top sellers
-  const featuredProducts = useMemo(() => db.getTopSellingProducts(3), [products]);
+  // Fix: Correct usage of getTopSellingProducts passing products context
+  const featuredProducts = useMemo(() => db.getTopSellingProducts(products, 3), [products]);
 
   // Handle conversion from budget
   useEffect(() => {
@@ -60,22 +57,26 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       const customer = customers.find(c => c.id === conversionData.customerId);
       if (customer) {
         setSelectedCustomer(customer);
-        const budgetItems = db.getBudgetItems(conversionData.id);
-        const initialCart: CartItem[] = budgetItems.map(item => {
-          const product = products.find(p => p.id === item.productId);
-          return {
-            ...(product || {
-              id: item.productId,
-              name: item.productName,
-              price: item.unitPrice,
-              stockQuantity: 0,
-              category: 'Desconhecida'
-            }),
-            cartQuantity: item.quantity
-          };
-        });
-        setCart(initialCart);
-        setStep(SaleStep.CONFIRMATION);
+        const loadBudgetItems = async () => {
+          // Fix: Handle async call to getBudgetItems
+          const budgetItems = await db.getBudgetItems(conversionData.id);
+          const initialCart: CartItem[] = budgetItems.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            return {
+              ...(product || {
+                id: item.productId,
+                name: item.productName,
+                price: item.unitPrice,
+                stockQuantity: 0,
+                category: 'Desconhecida'
+              }),
+              cartQuantity: item.quantity
+            };
+          });
+          setCart(initialCart);
+          setStep(SaleStep.CONFIRMATION);
+        };
+        loadBudgetItems();
       }
     }
   }, [conversionData, products, customers]);
@@ -121,7 +122,8 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     }
   };
 
-  const updateCartQuantity = (id: number, delta: number) => {
+  // Fix: Type id to Product['id']
+  const updateCartQuantity = (id: Product['id'], delta: number) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === id);
       if (!existing) return prev;
@@ -144,13 +146,14 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     });
   };
 
-  const removeFromCart = (id: number) => {
+  // Fix: Type id to Product['id']
+  const removeFromCart = (id: Product['id']) => {
     setCart(cart.filter(item => item.id !== id));
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
 
-  const handleFinishSale = () => {
+  const handleFinishSale = async () => {
     if (!selectedCustomer || !currentUser) return;
 
     const saleId = `SALE-${Date.now()}`;
@@ -172,13 +175,13 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       unitPrice: item.price
     }));
 
-    db.createSale(newSale, saleItems);
+    await db.createSale(newSale, saleItems);
     setLastId(saleId);
     setIsBudgetMode(false);
     setStep(SaleStep.FINISHED);
   };
 
-  const handleGenerateBudget = () => {
+  const handleGenerateBudget = async () => {
     if (!selectedCustomer || !currentUser) return;
 
     const budgetId = `BUDGET-${Date.now()}`;
@@ -204,7 +207,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       unitPrice: item.price
     }));
 
-    db.createBudget(newBudget, budgetItems);
+    await db.createBudget(newBudget, budgetItems);
     setLastId(budgetId);
     setIsBudgetMode(true);
     setStep(SaleStep.FINISHED);
@@ -305,7 +308,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                   {showFeatured && (
                     <div className="grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
                       {featuredProducts.map(product => {
-                        const inCart = cart.find(item => item.id === product.id);
                         return (
                           <div 
                             key={`featured-${product.id}`} 

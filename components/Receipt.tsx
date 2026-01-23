@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
-import { ReceiptType } from '../types';
+import { ReceiptType, ShopInfo } from '../types';
 import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle } from 'lucide-react';
 
 interface ReceiptProps {
@@ -12,21 +12,47 @@ interface ReceiptProps {
 
 const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType = 'fiscal' }) => {
   const [printType, setPrintType] = useState<ReceiptType>(initialType);
-  const shopInfo = db.getShopInfo();
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [entity, setEntity] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     if (initialType) setPrintType(initialType);
   }, [initialType]);
 
-  const entity = isBudget 
-    ? db.getBudgets().find(b => b.id === saleId)
-    : db.getSales().find(s => s.id === saleId);
-    
-  const items = isBudget
-    ? db.getBudgetItems(saleId)
-    : db.getSaleItems(saleId);
+  // Fix: Use useEffect to handle asynchronous data fetching instead of calling them in render
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const info = await db.getShopInfo();
+      setShopInfo(info);
 
-  if (!entity) return null;
+      let currentEntity;
+      let currentItems;
+
+      if (isBudget) {
+        const budgets = await db.getBudgets();
+        currentEntity = budgets.find(b => b.id === saleId);
+        currentItems = await db.getBudgetItems(saleId);
+      } else {
+        const sales = await db.getSales();
+        currentEntity = sales.find(s => s.id === saleId);
+        currentItems = await db.getSaleItems(saleId);
+      }
+
+      setEntity(currentEntity);
+      setItems(currentItems);
+      setLoading(false);
+    };
+    loadData();
+  }, [saleId, isBudget]);
+
+  if (loading || !entity || !shopInfo) return (
+    <div className="flex justify-center p-8">
+      <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
 
   const expired = isBudget && (entity as any).validUntil && new Date((entity as any).validUntil) < new Date();
 

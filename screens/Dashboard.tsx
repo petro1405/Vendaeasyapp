@@ -1,19 +1,18 @@
 
 import React, { useState } from 'react';
-import { Product, Sale, ReceiptType } from '../types';
-import { db } from '../db';
+import { Product, Sale, ReceiptType, Budget } from '../types';
 import Receipt from '../components/Receipt';
 import { TrendingUp, AlertTriangle, Package, Calendar, FileText, ShoppingBag, Printer, X, CreditCard } from 'lucide-react';
 
 interface DashboardProps {
   products: Product[];
   sales: Sale[];
+  budgets: Budget[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
+const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [initialType, setInitialType] = useState<ReceiptType>('fiscal');
-  const budgets = db.getBudgets();
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();

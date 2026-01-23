@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Product, User as UserType } from '../types';
 import { db } from '../db';
 import SmartScanner from '../components/SmartScanner';
-import { Search, Plus, Minus, Check, Package, Layers, X, DollarSign, Percent, TrendingUp, Lock, Camera, Sparkles } from 'lucide-react';
+import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles } from 'lucide-react';
 
 interface InventoryProps {
   products: Product[];
@@ -13,7 +13,8 @@ interface InventoryProps {
 
 const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
+  // Fix: typing editingId with Product['id']
+  const [editingId, setEditingId] = useState<Product['id'] | null>(null);
   const [tempStock, setTempStock] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -38,8 +39,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setTempStock(p.stockQuantity);
   };
 
-  const handleSave = (id: number) => {
-    db.updateProductStock(id, tempStock);
+  const handleSave = async (id: Product['id']) => {
+    // Fix: db.updateProductStock now correctly typed in db.ts
+    await db.updateProductStock(id, tempStock);
     setEditingId(null);
     onUpdate();
   };
@@ -50,7 +52,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setIsAddModalOpen(true);
   };
 
-  const handleAddProduct = (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
     if (!newName || !newPrice || !newCategory || !newInitialStock) {
@@ -58,7 +60,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       return;
     }
 
-    db.addProduct({
+    await db.addProduct({
       name: newName,
       category: newCategory,
       price: parseFloat(newPrice),
@@ -75,13 +77,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setIsAddModalOpen(false);
     onUpdate();
   };
-
-  // Calculate Margin and Profit
-  const priceVal = parseFloat(newPrice) || 0;
-  const costVal = parseFloat(newCostPrice) || 0;
-  const profit = priceVal - costVal;
-  const margin = priceVal > 0 ? (profit / priceVal) * 100 : 0;
-  const markup = costVal > 0 ? (profit / costVal) * 100 : 0;
 
   return (
     <div className="p-4 space-y-4">

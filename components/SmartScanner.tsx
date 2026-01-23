@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Camera, X, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface SmartScannerProps {
@@ -56,12 +56,14 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
       const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 
       try {
+        // Always initialize GoogleGenAI within the scope to ensure environment variables are fresh
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = mode === 'sale' 
           ? "Identify the construction material or tool in this image. Look for brand names, labels, or the product type. Return JSON with 'name' (be specific, e.g., 'Cimento CP-II Itaú 50kg') and 'category'."
           : "Analyze this product for inventory registration. Suggest a precise 'name' and 'category' based on visual features or labels. Return JSON.";
 
-        const response = await ai.models.generateContent({
+        // Use correct model and structured response generation
+        const response: GenerateContentResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
@@ -71,6 +73,8 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
           },
           config: {
             responseMimeType: "application/json",
+            // Thinking budget set to 0 as per guidelines for latency sensitive identification
+            thinkingConfig: { thinkingBudget: 0 },
             responseSchema: {
               type: Type.OBJECT,
               properties: {
@@ -83,7 +87,10 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
           }
         });
 
-        const result = JSON.parse(response.text || '{}');
+        // Extract text directly from the text property as per guidelines
+        const responseText = response.text || '{}';
+        const result = JSON.parse(responseText.trim());
+        
         if (result.name) {
           onDetected({
             name: result.name,
