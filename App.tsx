@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppTab, Product, Sale, Customer, Budget, User } from './types.ts';
 import { db } from './db.ts';
+import { auth, onAuthStateChanged, firestore, doc, getDoc } from './firebase.ts';
 import Dashboard from './screens/Dashboard.tsx';
 import Inventory from './screens/Inventory.tsx';
 import NewSale from './screens/NewSale.tsx';
@@ -25,31 +26,53 @@ const App: React.FC = () => {
     let unsubSales: any;
     let unsubBudgets: any;
 
-    const setupAuth = async () => {
-      const user = await db.getAuthUser();
-      setCurrentUser(user);
-      setIsInitializing(false);
+    // REAL-TIME AUTH LISTENER
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("[Auth] Estado alterado:", firebaseUser ? "Logado" : "Deslogado");
+      
+      if (firebaseUser) {
+        try {
+          // Busca dados do usuário no Firestore
+          const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            setCurrentUser(userData);
+            
+            // Inicia os listeners de dados
+            unsubProds = db.subscribeProducts((prods) => {
+              setProducts(prods);
+              setIsSynced(true);
+            });
 
-      if (user) {
-        // Setup Real-time Listeners
-        unsubProds = db.subscribeProducts((prods) => {
-          setProducts(prods);
-          setIsSynced(true);
-        });
+            unsubSales = db.subscribeSales((sles) => {
+              setSales(sles);
+            }, userData.role === 'vendedor' ? userData.username : undefined);
 
-        unsubSales = db.subscribeSales((sles) => {
-          setSales(sles);
-        }, user.role === 'vendedor' ? user.username : undefined);
-
-        unsubBudgets = db.subscribeBudgets((bdgts) => {
-          setBudgets(bdgts);
-        }, user.role === 'vendedor' ? user.username : undefined);
+            unsubBudgets = db.subscribeBudgets((bdgts) => {
+              setBudgets(bdgts);
+            }, userData.role === 'vendedor' ? userData.username : undefined);
+          } else {
+            console.error("[Auth] Usuário logado mas documento não encontrado no Firestore");
+            setCurrentUser(null);
+          }
+        } catch (e) {
+          console.error("[Auth] Erro ao carregar perfil:", e);
+          setCurrentUser(null);
+        }
+      } else {
+        // Limpa tudo se deslogar
+        setCurrentUser(null);
+        if (unsubProds) unsubProds();
+        if (unsubSales) unsubSales();
+        if (unsubBudgets) unsubBudgets();
+        setIsSynced(false);
       }
-    };
-
-    setupAuth();
+      
+      setIsInitializing(false);
+    });
 
     return () => {
+      unsubscribeAuth();
       if (unsubProds) unsubProds();
       if (unsubSales) unsubSales();
       if (unsubBudgets) unsubBudgets();

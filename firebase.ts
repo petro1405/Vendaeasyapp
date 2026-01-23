@@ -1,5 +1,6 @@
-// Standard Firebase Modular SDK imports
+
 import { initializeApp } from "firebase/app";
+// Fix: Use consolidated named imports for Firebase Auth to ensure all symbols are correctly recognized as exported members of the modular SDK.
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -35,17 +36,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase App
-console.log("[Firebase] Initializing App...");
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services using the initialized app
-// Fix: Ensuring Auth and Firestore instances are correctly initialized
+// Initialize Firebase services
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);
 
-console.log("[Firebase] Services initialized successfully.");
-
-// Exporting modular functions to be used by the db.ts file
+// Re-export modular functions for cleaner access in db.ts and other components
 export { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
