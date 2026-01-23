@@ -1,0 +1,7 @@
+{
+  "name": "VendaEasy - Gestor de Vendas e Estoque",
+  "description": "Uma solução mobile-first completa para gerenciar estoque, vendas e emissão de comprovantes, focada em pequenos negócios.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
