@@ -1,4 +1,4 @@
-// Standard modular Firebase imports for version 9+
+// Standard Firebase Modular SDK imports
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -35,11 +35,15 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase App
+console.log("[Firebase] Initializing App...");
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services using the initialized app
+// Fix: Ensuring Auth and Firestore instances are correctly initialized
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);
+
+console.log("[Firebase] Services initialized successfully.");
 
 // Exporting modular functions to be used by the db.ts file
 export { 
