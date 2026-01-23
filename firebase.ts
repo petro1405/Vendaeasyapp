@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-// Fix: Use consolidated named imports for Firebase Auth to ensure all symbols are correctly recognized as exported members of the modular SDK.
+// Fix: Consolidate named imports for Firebase Auth to ensure all symbols are correctly recognized as exported members of the modular SDK.
 import { 
   getAuth, 
   signInWithEmailAndPassword, 

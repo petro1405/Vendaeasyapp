@@ -39,6 +39,9 @@ export interface Sale {
   customerName: string;
   date: string;
   total: number;
+  subtotal?: number;
+  discount?: number;
+  paymentMethod?: string;
   sellerUsername: string;
   items?: SaleItem[];
 }

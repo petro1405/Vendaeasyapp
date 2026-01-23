@@ -17,7 +17,10 @@ import {
   ChevronDown,
   ChevronUp,
   Flame,
-  Camera
+  Camera,
+  Percent,
+  CreditCard,
+  QrCode
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -47,18 +50,19 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const [budgetValidityDays, setBudgetValidityDays] = useState(7);
   const [showFeatured, setShowFeatured] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  
+  // Novos estados para Desconto e Pagamento
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao'>('pix');
 
-  // Fix: Correct usage of getTopSellingProducts passing products context
   const featuredProducts = useMemo(() => db.getTopSellingProducts(products, 3), [products]);
 
-  // Handle conversion from budget
   useEffect(() => {
     if (conversionData && products.length > 0 && customers.length > 0) {
       const customer = customers.find(c => c.id === conversionData.customerId);
       if (customer) {
         setSelectedCustomer(customer);
         const loadBudgetItems = async () => {
-          // Fix: Handle async call to getBudgetItems
           const budgetItems = await db.getBudgetItems(conversionData.id);
           const initialCart: CartItem[] = budgetItems.map(item => {
             const product = products.find(p => p.id === item.productId);
@@ -107,7 +111,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   };
 
   const handleScannerDetected = (data: { name: string }) => {
-    // Tenta encontrar o produto pelo nome retornado pela IA
     const matched = products.find(p => 
       p.name.toLowerCase().includes(data.name.toLowerCase()) || 
       data.name.toLowerCase().includes(p.name.toLowerCase())
@@ -115,43 +118,35 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
     if (matched) {
       addToCart(matched);
-      setSearchTerm(''); // Limpa busca pra mostrar o feedback
+      setSearchTerm('');
     } else {
-      setSearchTerm(data.name); // Preenche a busca com o nome detectado
-      alert(`Produto detectado: "${data.name}". Não encontrado no estoque, mas você pode buscar manualmente.`);
+      setSearchTerm(data.name);
+      alert(`Produto detectado: "${data.name}". Não encontrado no estoque.`);
     }
   };
 
-  // Fix: Type id to Product['id']
   const updateCartQuantity = (id: Product['id'], delta: number) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === id);
       if (!existing) return prev;
-
       const newQty = existing.cartQuantity + delta;
-      
-      if (newQty <= 0) {
-        return prev.filter(item => item.id !== id);
-      }
-
+      if (newQty <= 0) return prev.filter(item => item.id !== id);
       const productSource = products.find(p => p.id === id);
       if (newQty > (productSource?.stockQuantity || 0)) {
         alert(`Estoque insuficiente! Disponivel: ${productSource?.stockQuantity}`);
         return prev;
       }
-
-      return prev.map(item => 
-        item.id === id ? { ...item, cartQuantity: newQty } : item
-      );
+      return prev.map(item => item.id === id ? { ...item, cartQuantity: newQty } : item);
     });
   };
 
-  // Fix: Type id to Product['id']
   const removeFromCart = (id: Product['id']) => {
     setCart(cart.filter(item => item.id !== id));
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
+  const discountAmount = cartTotal * (discountPercent / 100);
+  const finalTotal = cartTotal - discountAmount;
 
   const handleFinishSale = async () => {
     if (!selectedCustomer || !currentUser) return;
@@ -162,7 +157,10 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       customerId: selectedCustomer.id,
       customerName: selectedCustomer.name,
       date: new Date().toISOString(),
-      total: cartTotal,
+      subtotal: cartTotal,
+      discount: discountAmount,
+      total: finalTotal,
+      paymentMethod: paymentMethod,
       sellerUsername: currentUser.username
     };
 
@@ -193,7 +191,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       customerId: selectedCustomer.id,
       customerName: selectedCustomer.name,
       date: new Date().toISOString(),
-      total: cartTotal,
+      total: cartTotal, // Orçamentos salvam o valor cheio
       validUntil: validUntil.toISOString(),
       sellerUsername: currentUser.username
     };
@@ -253,13 +251,8 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         return (
           <div className="flex flex-col h-full bg-gray-50">
             {isScannerOpen && (
-              <SmartScanner 
-                mode="sale" 
-                onClose={() => setIsScannerOpen(false)} 
-                onDetected={handleScannerDetected} 
-              />
+              <SmartScanner mode="sale" onClose={() => setIsScannerOpen(false)} onDetected={handleScannerDetected} />
             )}
-            
             <div className="bg-white p-4 border-b border-gray-200 space-y-3 sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <button onClick={() => setStep(SaleStep.SELECT_CUSTOMER)} className="text-indigo-600 flex items-center gap-1 font-semibold text-sm">
@@ -278,18 +271,13 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <button 
-                  onClick={() => setIsScannerOpen(true)}
-                  className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-indigo-100 active:scale-95 transition-all"
-                >
+                <button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg active:scale-95 transition-all">
                   <Camera size={20} />
                 </button>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 no-scrollbar">
-              
-              {/* Featured Items Section */}
               {featuredProducts.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between px-1 mb-3">
@@ -297,46 +285,23 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                       <Flame size={18} className="text-orange-500 fill-orange-500" />
                       <h3 className="text-xs font-black uppercase text-gray-600 tracking-wider">Mais Vendidos</h3>
                     </div>
-                    <button 
-                      onClick={() => setShowFeatured(!showFeatured)}
-                      className="text-gray-400 p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
+                    <button onClick={() => setShowFeatured(!showFeatured)} className="text-gray-400 p-1">
                       {showFeatured ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
-
                   {showFeatured && (
-                    <div className="grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                      {featuredProducts.map(product => {
-                        return (
-                          <div 
-                            key={`featured-${product.id}`} 
-                            className="bg-gradient-to-r from-orange-50 to-white p-4 rounded-2xl border border-orange-100 shadow-sm flex items-center justify-between group"
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-black text-gray-800 text-sm">{product.name}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs text-orange-600 font-black">R$ {product.price.toFixed(2)}</span>
-                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Top Vendas</span>
-                              </div>
-                            </div>
-                            
-                            <button 
-                              onClick={() => addToCart(product)}
-                              disabled={product.stockQuantity <= 0}
-                              className={`p-3 rounded-xl transition-all active:scale-95 shadow-lg ${
-                                product.stockQuantity > 0 
-                                ? 'bg-orange-500 text-white shadow-orange-200' 
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              }`}
-                            >
-                              <Plus size={20} />
-                            </button>
+                    <div className="grid grid-cols-1 gap-2">
+                      {featuredProducts.map(product => (
+                        <div key={`featured-${product.id}`} className="bg-gradient-to-r from-orange-50 to-white p-4 rounded-2xl border border-orange-100 shadow-sm flex items-center justify-between">
+                          <div className="flex-1">
+                            <span className="font-black text-gray-800 text-sm">{product.name}</span>
+                            <div className="text-xs text-orange-600 font-black">R$ {product.price.toFixed(2)}</div>
                           </div>
-                        );
-                      })}
+                          <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-orange-500 text-white rounded-xl shadow-lg active:scale-95 transition-all">
+                            <Plus size={20} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -353,35 +318,15 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     <div className="flex-1">
                       <div className="font-bold text-gray-800">{product.name}</div>
                       <div className="text-sm text-indigo-600 font-bold">R$ {product.price.toFixed(2)}</div>
-                      <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Estoque: {product.stockQuantity}</div>
                     </div>
-                    
                     {inCart ? (
                       <div className="flex items-center gap-3 bg-indigo-50 p-1 rounded-xl">
-                        <button 
-                          onClick={() => updateCartQuantity(product.id, -1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm active:scale-90"
-                        >
-                          <Minus size={16} />
-                        </button>
+                        <button onClick={() => updateCartQuantity(product.id, -1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm"><Minus size={16} /></button>
                         <span className="font-black text-indigo-700 w-6 text-center">{inCart.cartQuantity}</span>
-                        <button 
-                          onClick={() => updateCartQuantity(product.id, 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm active:scale-90"
-                        >
-                          <Plus size={16} />
-                        </button>
+                        <button onClick={() => updateCartQuantity(product.id, 1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm"><Plus size={16} /></button>
                       </div>
                     ) : (
-                      <button 
-                        onClick={() => addToCart(product)}
-                        disabled={product.stockQuantity <= 0}
-                        className={`p-3 rounded-xl transition-all active:scale-95 ${
-                          product.stockQuantity > 0 
-                          ? 'bg-indigo-600 text-white shadow-md' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
+                      <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-indigo-600 text-white rounded-xl shadow-md active:scale-95 transition-all">
                         <Plus size={20} />
                       </button>
                     )}
@@ -399,11 +344,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 <button 
                   onClick={() => cart.length > 0 && setStep(SaleStep.CONFIRMATION)}
                   disabled={cart.length === 0}
-                  className={`px-8 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all ${
-                    cart.length > 0 
-                    ? 'bg-white text-indigo-600 shadow-xl active:scale-95' 
-                    : 'bg-white/20 text-white/50 cursor-not-allowed'
-                  }`}
+                  className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-2 shadow-xl active:scale-95 transition-all"
                 >
                   Concluir <ArrowRight size={18} />
                 </button>
@@ -414,23 +355,14 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
       case SaleStep.CONFIRMATION:
         return (
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <button onClick={() => setStep(SaleStep.ADD_PRODUCTS)} className="text-indigo-600 flex items-center gap-1 font-black text-xs uppercase bg-indigo-50 px-4 py-2 rounded-full w-fit">
-                <ChevronLeft size={16} /> Voltar aos itens
-              </button>
-              {conversionData && (
-                 <div className="text-[10px] font-black text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100 uppercase tracking-tight flex items-center gap-1">
-                   <FileText size={12} /> Convertendo Orçamento
-                 </div>
-              )}
-            </div>
+          <div className="p-4 space-y-4 pb-24">
+            <button onClick={() => setStep(SaleStep.ADD_PRODUCTS)} className="text-indigo-600 flex items-center gap-1 font-black text-xs uppercase bg-indigo-50 px-4 py-2 rounded-full">
+              <ChevronLeft size={16} /> Voltar
+            </button>
             
             <div className="bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                  <User size={20} />
-                </div>
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600"><User size={20} /></div>
                 <div>
                   <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Cliente</div>
                   <div className="font-black text-gray-800">{selectedCustomer?.name}</div>
@@ -444,85 +376,116 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                       <div className="font-bold text-gray-800 text-sm truncate">{item.name}</div>
                       <div className="text-[10px] text-gray-400 font-bold uppercase">R$ {item.price.toFixed(2)} un</div>
                     </div>
-                    
-                    <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl ml-4">
-                      <button 
-                        onClick={() => updateCartQuantity(item.id, -1)}
-                        className="w-7 h-7 flex items-center justify-center bg-white text-gray-600 rounded-lg shadow-sm active:scale-90"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="font-black text-gray-800 w-5 text-center text-xs">{item.cartQuantity}</span>
-                      <button 
-                        onClick={() => updateCartQuantity(item.id, 1)}
-                        className="w-7 h-7 flex items-center justify-center bg-white text-gray-600 rounded-lg shadow-sm active:scale-90"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-
                     <div className="text-right ml-4 min-w-[70px]">
                       <div className="font-black text-indigo-600 text-sm">R$ {(item.price * item.cartQuantity).toFixed(2)}</div>
-                      <button 
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-[9px] text-red-400 font-bold uppercase mt-1 hover:text-red-600"
-                      >
-                        Remover
-                      </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="pt-4 border-t-2 border-dashed border-gray-100 flex justify-between items-end">
-                <div>
-                  <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total a Pagar</div>
-                  <div className="font-black text-3xl text-gray-900 tracking-tighter">R$ {cartTotal.toFixed(2)}</div>
+              {/* Seção de Desconto e Pagamento */}
+              {!isBudgetMode && (
+                <div className="pt-6 border-t border-gray-100 space-y-4">
+                  <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                    <CreditCard size={14} /> Forma de Pagamento & Desconto
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <button 
+                      onClick={() => setPaymentMethod('pix')}
+                      className={`py-3 rounded-2xl flex flex-col items-center gap-1 transition-all border ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                    >
+                      <QrCode size={18} />
+                      <span className="text-[9px] font-black uppercase">PIX</span>
+                    </button>
+                    <button 
+                      onClick={() => setPaymentMethod('dinheiro')}
+                      className={`py-3 rounded-2xl flex flex-col items-center gap-1 transition-all border ${paymentMethod === 'dinheiro' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                    >
+                      <div className="text-lg font-bold">R$</div>
+                      <span className="text-[9px] font-black uppercase">Dinheiro</span>
+                    </button>
+                    <button 
+                      onClick={() => setPaymentMethod('cartao')}
+                      className={`py-3 rounded-2xl flex flex-col items-center gap-1 transition-all border ${paymentMethod === 'cartao' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                    >
+                      <CreditCard size={18} />
+                      <span className="text-[9px] font-black uppercase">Cartão</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-indigo-700 font-black text-[10px] uppercase tracking-wider">
+                        <Percent size={14} /> Desconto (%)
+                      </div>
+                      {paymentMethod === 'pix' && (
+                        <span className="bg-green-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase">Sugerido para PIX</span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="Ex: 5"
+                        className="w-full pl-4 pr-12 py-3 bg-white border border-indigo-200 rounded-2xl text-lg font-black text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={discountPercent || ''}
+                        onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-indigo-300">%</span>
+                    </div>
+                    <div className="flex gap-2">
+                       {[0, 5, 10, 15].map(p => (
+                         <button 
+                          key={p} 
+                          onClick={() => setDiscountPercent(p)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase border transition-all ${discountPercent === p ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-400 border-indigo-100'}`}
+                         >
+                           {p}%
+                         </button>
+                       ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg font-black text-[10px] uppercase">
-                  {cart.reduce((a, b) => a + b.cartQuantity, 0)} Itens
+              )}
+
+              <div className="pt-4 border-t-2 border-dashed border-gray-100 space-y-2">
+                <div className="flex justify-between items-center text-gray-400">
+                  <span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span>
+                  <span className="font-bold text-sm">R$ {cartTotal.toFixed(2)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between items-center text-green-600">
+                    <span className="text-[10px] font-black uppercase tracking-widest">Desconto ({discountPercent}%)</span>
+                    <span className="font-bold text-sm">- R$ {discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-end pt-2">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Líquido</div>
+                    <div className="font-black text-4xl text-gray-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-indigo-600 text-white px-4 py-2 rounded-2xl font-black text-xs uppercase shadow-lg shadow-indigo-100 mb-1">
+                    {paymentMethod}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {!conversionData && (
-              <div className="bg-amber-50 p-4 rounded-3xl border border-amber-100 space-y-3">
-                 <div className="flex items-center gap-2 text-amber-700 font-black text-[10px] uppercase tracking-wider">
-                   <CalendarClock size={14} /> Validade do Orçamento (Dias)
-                 </div>
-                 <div className="flex items-center gap-4">
-                   {[3, 7, 15, 30].map(days => (
-                     <button
-                      key={days}
-                      onClick={() => setBudgetValidityDays(days)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-                        budgetValidityDays === days 
-                        ? 'bg-amber-500 text-white shadow-md' 
-                        : 'bg-white text-amber-700 border border-amber-200'
-                      }`}
-                     >
-                       {days}d
-                     </button>
-                   ))}
-                 </div>
-              </div>
-            )}
-
             <div className="space-y-3 pt-4">
               <button 
                 onClick={handleFinishSale}
-                className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
+                className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
               >
-                {conversionData ? 'Finalizar Venda' : 'Efetuar Venda'} <CheckCircle2 size={20} />
+                Finalizar Venda <CheckCircle2 size={20} />
               </button>
-              {!conversionData && (
-                <button 
-                  onClick={handleGenerateBudget}
-                  className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl shadow-amber-100 flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
-                >
-                  Gerar Orçamento <FileText size={20} />
-                </button>
-              )}
+              <button 
+                onClick={handleGenerateBudget}
+                className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
+              >
+                Salvar Orçamento <FileText size={20} />
+              </button>
             </div>
           </div>
         );
@@ -530,24 +493,15 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       case SaleStep.FINISHED:
         return (
           <div className="p-4 flex flex-col items-center justify-center min-h-[70vh] space-y-6">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center animate-bounce shadow-lg ${isBudgetMode ? 'bg-amber-100 text-amber-600 shadow-amber-100' : 'bg-green-100 text-green-600 shadow-green-100'}`}>
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center animate-bounce shadow-lg ${isBudgetMode ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
               {isBudgetMode ? <FileText size={56} /> : <CheckCircle2 size={56} />}
             </div>
             <div className="text-center">
               <h2 className="text-3xl font-black text-gray-800">{isBudgetMode ? 'Orçamento OK!' : 'Venda Concluída!'}</h2>
               <p className="text-gray-500 font-medium">O registro foi salvo com sucesso.</p>
             </div>
-            
-            {lastId && (
-              <Receipt saleId={lastId} isBudget={isBudgetMode} />
-            )}
-
-            <button 
-              onClick={isBudgetMode ? onBudgetComplete : onComplete}
-              className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all uppercase tracking-widest text-sm"
-            >
-              Continuar
-            </button>
+            {lastId && <Receipt saleId={lastId} isBudget={isBudgetMode} />}
+            <button onClick={isBudgetMode ? onBudgetComplete : onComplete} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all uppercase tracking-widest text-sm">Continuar</button>
           </div>
         );
     }

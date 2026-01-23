@@ -210,7 +210,6 @@ export const db = {
   },
 
   getTopSellingProducts: (products: Product[], limit: number): Product[] => {
-    // Simulando baseada no menor estoque (itens que saíram mais)
     return [...products].sort((a, b) => a.stockQuantity - b.stockQuantity).slice(0, limit);
   },
 
