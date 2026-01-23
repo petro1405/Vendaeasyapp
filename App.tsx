@@ -9,7 +9,7 @@ import SalesHistory from './screens/SalesHistory.tsx';
 import Budgets from './screens/Budgets.tsx';
 import Settings from './screens/Settings.tsx';
 import Login from './screens/Login.tsx';
-import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon, Cloud, CloudCheck } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -18,50 +18,65 @@ const App: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [isInitializing, setIsInitializing] = useState(true);
-
-  const refreshData = async () => {
-    const user = await db.getAuthUser();
-    setCurrentUser(user);
-    
-    if (user) {
-      const [prods, sles, bdgts] = await Promise.all([
-        db.getProducts(),
-        db.getSales(user.role === 'vendedor' ? user.username : undefined),
-        db.getBudgets(user.role === 'vendedor' ? user.username : undefined)
-      ]);
-      setProducts(prods);
-      setSales(sles);
-      setBudgets(bdgts);
-    }
-    setIsInitializing(false);
-  };
+  const [isSynced, setIsSynced] = useState(false);
 
   useEffect(() => {
-    refreshData();
+    let unsubUser: any;
+    let unsubProds: any;
+    let unsubSales: any;
+    let unsubBudgets: any;
+
+    const setupAuth = async () => {
+      const user = await db.getAuthUser();
+      setCurrentUser(user);
+      setIsInitializing(false);
+
+      if (user) {
+        // Setup Real-time Listeners
+        unsubProds = db.subscribeProducts((prods) => {
+          setProducts(prods);
+          setIsSynced(true);
+        });
+
+        unsubSales = db.subscribeSales((sles) => {
+          setSales(sles);
+        }, user.role === 'vendedor' ? user.username : undefined);
+
+        unsubBudgets = db.subscribeBudgets((bdgts) => {
+          setBudgets(bdgts);
+        }, user.role === 'vendedor' ? user.username : undefined);
+      }
+    };
+
+    setupAuth();
+
+    return () => {
+      if (unsubProds) unsubProds();
+      if (unsubSales) unsubSales();
+      if (unsubBudgets) unsubBudgets();
+    };
   }, []);
 
   const handleConvertToSale = (budget: Budget) => {
-    // Lógica para preencher o carrinho seria necessária aqui
     setActiveTab(AppTab.NEW_SALE);
   };
 
   const handleLogout = async () => {
     await db.logout();
     setCurrentUser(null);
-    refreshData();
   };
 
   if (isInitializing) {
     return (
       <div className="h-screen bg-indigo-600 flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-        <p className="text-white font-black text-xs uppercase tracking-widest animate-pulse">Autenticando...</p>
+        <p className="text-white font-black text-xs uppercase tracking-widest animate-pulse">Conectando à Nuvem...</p>
       </div>
     );
   }
 
   if (!currentUser) {
-    return <Login onLogin={refreshData} />;
+    return <Login onLogin={() => {}} />;
   }
 
   const renderScreen = () => {
@@ -69,29 +84,23 @@ const App: React.FC = () => {
       case AppTab.DASHBOARD:
         return <Dashboard products={products} sales={sales} budgets={budgets} />;
       case AppTab.INVENTORY:
-        return <Inventory products={products} onUpdate={refreshData} currentUser={currentUser} />;
+        return <Inventory products={products} onUpdate={() => {}} currentUser={currentUser} />;
       case AppTab.NEW_SALE:
         return (
           <NewSale 
             products={products} 
-            customers={[]} // Ajustar busca de clientes Firestore se necessário
+            customers={[{id: 1, name: 'Consumidor Final', phone: '(00) 00000-0000'}]} 
             currentUser={currentUser}
-            onComplete={() => {
-              refreshData();
-              setActiveTab(AppTab.HISTORY);
-            }} 
-            onBudgetComplete={() => {
-              refreshData();
-              setActiveTab(AppTab.BUDGETS);
-            }}
+            onComplete={() => setActiveTab(AppTab.HISTORY)} 
+            onBudgetComplete={() => setActiveTab(AppTab.BUDGETS)}
           />
         );
       case AppTab.BUDGETS:
-        return <Budgets budgets={budgets} onUpdate={refreshData} onConvertToSale={handleConvertToSale} />;
+        return <Budgets budgets={budgets} onUpdate={() => {}} onConvertToSale={handleConvertToSale} />;
       case AppTab.HISTORY:
         return <SalesHistory sales={sales} />;
       case AppTab.SETTINGS:
-        return <Settings onUpdate={refreshData} onLogout={handleLogout} />;
+        return <Settings onUpdate={() => {}} onLogout={handleLogout} />;
       default:
         return <Dashboard products={products} sales={sales} budgets={budgets} />;
     }
@@ -100,13 +109,21 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-white shadow-xl overflow-hidden border-x border-gray-100">
       <header className="bg-indigo-600 text-white p-4 flex items-center justify-between sticky top-0 z-10 shadow-md">
-        <h1 className="text-xl font-bold flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab(AppTab.DASHBOARD)}>
-          <span className="bg-white text-indigo-600 p-1 rounded-md">V</span>
-          VendaEasy
-        </h1>
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab(AppTab.DASHBOARD)}>
+            <span className="bg-white text-indigo-600 p-1 rounded-md">V</span>
+            VendaEasy
+          </h1>
+          <div className="flex items-center gap-1 mt-0.5">
+            {isSynced ? <CloudCheck size={10} className="text-green-400" /> : <Cloud size={10} className="text-indigo-300 animate-pulse" />}
+            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200">
+              {isSynced ? 'Nuvem Online' : 'Sincronizando...'}
+            </span>
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <div className="text-[9px] font-bold bg-white/10 px-2 py-1 rounded-lg">
-            {currentUser.name.split(' ')[0]} ({currentUser.role})
+            {currentUser.name.split(' ')[0]}
           </div>
           <button 
             onClick={() => setActiveTab(AppTab.SETTINGS)}
@@ -117,7 +134,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pb-20">
+      <main className="flex-1 overflow-y-auto no-scrollbar pb-20 bg-slate-50">
         {renderScreen()}
       </main>
 

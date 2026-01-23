@@ -64,20 +64,22 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
       const base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
 
       try {
+        // Initialize GenAI with the API key from environment variables
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         const prompt = mode === 'sale' 
           ? "Identify exactly what construction product is in this image. Focus on the brand and specifications (e.g., 'Tijolo 8 furos', 'Argamassa Votoran AC-I 20kg'). Return a structured JSON."
           : "Analyze this item for store inventory. Provide the full product name and the most appropriate construction category. Return JSON.";
 
+        // Use 'gemini-3-flash-preview' for vision tasks as per guidelines
         const response: GenerateContentResponse = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-latest',
-          contents: [{
+          model: 'gemini-3-flash-preview',
+          contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
               { text: prompt }
             ]
-          }],
+          },
           config: {
             responseMimeType: "application/json",
             responseSchema: {
@@ -101,6 +103,7 @@ const SmartScanner: React.FC<SmartScannerProps> = ({ onDetected, onClose, mode }
           }
         });
 
+        // Use the .text property directly to extract output text
         const responseText = response.text;
         
         if (!responseText) {

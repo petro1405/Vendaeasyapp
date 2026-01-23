@@ -1,13 +1,6 @@
 
-import { initializeApp } from "@firebase/app";
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged, 
-  updateProfile 
-} from "@firebase/auth";
+import { initializeApp } from "firebase/app";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { 
   getFirestore, 
   doc, 
@@ -20,8 +13,9 @@ import {
   orderBy, 
   addDoc, 
   updateDoc, 
-  deleteDoc 
-} from "@firebase/firestore";
+  deleteDoc,
+  onSnapshot
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC-RUNbXfLcKF11481WmNBtEQKafL3SSPw",
@@ -33,14 +27,13 @@ const firebaseConfig = {
   measurementId: "G-9YE8JZ77Z3"
 };
 
-// Inicialização Única
 const app = initializeApp(firebaseConfig);
 
-// Instâncias
+// Initialize Firebase services using standard v9+ modular syntax
 export const auth = getAuth(app);
 export const firestore = getFirestore(app);
 
-// Re-exportação de Funções de Auth
+// Export Auth functions to be used throughout the application
 export { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -49,7 +42,7 @@ export {
   updateProfile 
 };
 
-// Re-exportação de Funções de Firestore
+// Export Firestore functions to be used throughout the application
 export { 
   doc, 
   setDoc, 
@@ -61,5 +54,6 @@ export {
   orderBy, 
   addDoc, 
   updateDoc, 
-  deleteDoc 
+  deleteDoc,
+  onSnapshot
 };

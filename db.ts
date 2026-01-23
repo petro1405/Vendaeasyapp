@@ -17,7 +17,8 @@ import {
   orderBy, 
   addDoc, 
   updateDoc, 
-  deleteDoc 
+  deleteDoc,
+  onSnapshot
 } from "./firebase";
 import { Product, Customer, Sale, SaleItem, ShopInfo, Budget, BudgetItem, User } from './types';
 
@@ -41,6 +42,7 @@ const DEFAULT_SHOP_INFO: ShopInfo = {
 };
 
 export const db = {
+  // --- AUTH ---
   login: async (email: string, pass: string): Promise<User | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
@@ -59,28 +61,19 @@ export const db = {
     try {
       const sanitizedUsername = userData.username.trim().toLowerCase().replace(/\s+/g, '');
       const email = `${sanitizedUsername}@venda-easy.com`;
-      
       const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
-      
       const newUser: User = {
         username: sanitizedUsername,
         name: userData.name,
         role: userData.role,
         uid: userCredential.user.uid
       };
-
       await updateProfile(userCredential.user, { displayName: userData.name });
       await setDoc(doc(firestore, COLLECTIONS.USERS, userCredential.user.uid), newUser);
-      
       return { success: true, message: 'Usuário cadastrado com sucesso!' };
     } catch (error: any) {
       console.error("Erro no registro:", error);
-      let msg = error.message;
-      if (error.code === 'auth/invalid-email') msg = 'Nome de usuário inválido.';
-      if (error.code === 'auth/email-already-in-use') msg = 'Este usuário já existe.';
-      if (error.code === 'auth/weak-password') msg = 'A senha deve ter pelo menos 6 caracteres.';
-      if (msg.includes("permissions")) msg = "Sem permissão no banco de dados. Verifique as regras do Firestore.";
-      return { success: false, message: msg };
+      return { success: false, message: error.message };
     }
   },
 
@@ -105,12 +98,38 @@ export const db = {
     });
   },
 
-  getUsers: async (): Promise<User[]> => {
-    const q = query(collection(firestore, COLLECTIONS.USERS));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as User);
+  // --- REAL-TIME LISTENERS (CLOUD SYNC) ---
+  subscribeProducts: (callback: (products: Product[]) => void) => {
+    const q = query(collection(firestore, COLLECTIONS.PRODUCTS), orderBy('name'));
+    return onSnapshot(q, (snapshot) => {
+      const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
+      callback(prods);
+    });
   },
 
+  subscribeSales: (callback: (sales: Sale[]) => void, sellerUsername?: string) => {
+    let q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
+    if (sellerUsername) {
+      q = query(collection(firestore, COLLECTIONS.SALES), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
+    }
+    return onSnapshot(q, (snapshot) => {
+      const sales = snapshot.docs.map(doc => doc.data() as Sale);
+      callback(sales);
+    });
+  },
+
+  subscribeBudgets: (callback: (budgets: Budget[]) => void, sellerUsername?: string) => {
+    let q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
+    if (sellerUsername) {
+      q = query(collection(firestore, COLLECTIONS.BUDGETS), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
+    }
+    return onSnapshot(q, (snapshot) => {
+      const budgets = snapshot.docs.map(doc => doc.data() as Budget);
+      callback(budgets);
+    });
+  },
+
+  // --- SHOP INFO ---
   getShopInfo: async (): Promise<ShopInfo> => {
     const shopDoc = await getDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'));
     return shopDoc.exists() ? (shopDoc.data() as ShopInfo) : DEFAULT_SHOP_INFO;
@@ -120,12 +139,7 @@ export const db = {
     await setDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'), info);
   },
 
-  getProducts: async (): Promise<Product[]> => {
-    const q = query(collection(firestore, COLLECTIONS.PRODUCTS), orderBy('name'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as unknown as Product));
-  },
-
+  // --- ACTIONS ---
   addProduct: async (product: Omit<Product, 'id'>) => {
     await addDoc(collection(firestore, COLLECTIONS.PRODUCTS), product);
   },
@@ -135,8 +149,10 @@ export const db = {
     await updateDoc(prodRef, { stockQuantity: quantity });
   },
 
-  getTopSellingProducts: (products: Product[], limit: number): Product[] => {
-    return [...products].sort((a, b) => b.stockQuantity - a.stockQuantity).slice(0, limit);
+  getProducts: async (): Promise<Product[]> => {
+    const q = query(collection(firestore, COLLECTIONS.PRODUCTS), orderBy('name'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
   },
 
   getSales: async (sellerUsername?: string): Promise<Sale[]> => {
@@ -158,7 +174,6 @@ export const db = {
 
   createSale: async (sale: Sale, items: SaleItem[]) => {
     await setDoc(doc(firestore, COLLECTIONS.SALES, sale.id), { ...sale, items });
-    
     for (const item of items) {
       const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(item.productId));
       const prodSnap = await getDoc(prodRef);
@@ -192,5 +207,16 @@ export const db = {
 
   deleteBudget: async (id: string) => {
     await deleteDoc(doc(firestore, COLLECTIONS.BUDGETS, id));
+  },
+
+  getTopSellingProducts: (products: Product[], limit: number): Product[] => {
+    // Simulando baseada no menor estoque (itens que saíram mais)
+    return [...products].sort((a, b) => a.stockQuantity - b.stockQuantity).slice(0, limit);
+  },
+
+  getUsers: async (): Promise<User[]> => {
+    const q = query(collection(firestore, COLLECTIONS.USERS));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as User);
   }
 };
