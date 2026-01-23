@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { db } from '../db';
-import { User as UserIcon, Lock, LogIn, AlertCircle, UserPlus, ShieldCheck, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { User as UserIcon, Lock, LogIn, AlertCircle, UserPlus, CheckCircle2 } from 'lucide-react';
 
 interface LoginProps {
   onLogin: () => void;
@@ -24,10 +24,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     setSuccess('');
 
+    // Sanitização para evitar erros de e-mail inválido
+    const sanitizedUsername = username.trim().toLowerCase().replace(/\s+/g, '');
+
     try {
       if (isRegisterMode) {
         const result = await db.registerUser({
-          username,
+          username: sanitizedUsername,
           name,
           role,
           password
@@ -43,20 +46,23 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           setError(result.message);
         }
       } else {
-        // Firebase Auth usa email. Vamos mockar email a partir do username para o VendaEasy
-        const email = `${username.toLowerCase()}@venda-easy.com`;
+        const email = `${sanitizedUsername}@venda-easy.com`;
         const user = await db.login(email, password);
         if (user) {
           onLogin();
         } else {
-          setError('Usuário não encontrado no banco de dados.');
+          setError('Usuário não encontrado ou credenciais incorretas.');
         }
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.code === 'auth/user-not-found' ? 'Usuário não cadastrado.' : 
-             err.code === 'auth/wrong-password' ? 'Senha incorreta.' : 
-             err.message || 'Falha na conexão com Firebase.');
+      if (err.code === 'auth/invalid-email') {
+        setError('O nome de usuário inserido resultou em um e-mail inválido.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Usuário ou senha incorretos.');
+      } else {
+        setError('Erro na conexão com o servidor. Tente novamente.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +85,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="bg-white/95 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl space-y-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegisterMode && (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome Completo</label>
                   <input 
@@ -91,8 +97,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Tipo de Acesso</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setRole('vendedor')} className={`py-3 rounded-xl text-[10px] font-black uppercase border ${role === 'vendedor' ? 'bg-indigo-600 text-white' : 'bg-gray-50 text-gray-400'}`}>Vendedor</button>
-                    <button type="button" onClick={() => setRole('admin')} className={`py-3 rounded-xl text-[10px] font-black uppercase border ${role === 'admin' ? 'bg-indigo-600 text-white' : 'bg-gray-50 text-gray-400'}`}>Admin</button>
+                    <button type="button" onClick={() => setRole('vendedor')} className={`py-3 rounded-xl text-[10px] font-black uppercase border transition-all ${role === 'vendedor' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>Vendedor</button>
+                    <button type="button" onClick={() => setRole('admin')} className={`py-3 rounded-xl text-[10px] font-black uppercase border transition-all ${role === 'admin' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>Admin</button>
                   </div>
                 </div>
               </div>
@@ -103,9 +109,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <div className="relative">
                 <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                 <input 
-                  type="text" required placeholder="Nome de usuário"
+                  type="text" required placeholder="Nome de usuário (sem espaços)"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={username} onChange={(e) => setUsername(e.target.value)}
+                  value={username} onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
                 />
               </div>
             </div>
@@ -122,7 +128,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            {error && <div className="text-red-500 bg-red-50 p-3 rounded-xl text-xs font-bold flex items-center gap-2"><AlertCircle size={14}/>{error}</div>}
+            {error && <div className="text-red-500 bg-red-50 p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-pulse"><AlertCircle size={14}/>{error}</div>}
             {success && <div className="text-green-600 bg-green-50 p-3 rounded-xl text-xs font-bold flex items-center gap-2"><CheckCircle2 size={14}/>{success}</div>}
 
             <button disabled={isLoading} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm disabled:opacity-50">
@@ -131,7 +137,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="w-full text-indigo-600 font-black text-[10px] uppercase tracking-widest py-2">
+          <button onClick={() => { setIsRegisterMode(!isRegisterMode); setError(''); setSuccess(''); }} className="w-full text-indigo-600 font-black text-[10px] uppercase tracking-widest py-2">
             {isRegisterMode ? 'Já tenho uma conta' : 'Criar nova conta'}
           </button>
         </div>

@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth } from "@firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Sua configuração do Firebase obtida no Console

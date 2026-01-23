@@ -6,7 +6,7 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile
-} from "firebase/auth";
+} from "@firebase/auth";
 import { 
   doc, 
   setDoc, 
@@ -44,7 +44,6 @@ const DEFAULT_SHOP_INFO: ShopInfo = {
 
 export const db = {
   // --- AUTH ---
-  // Modular login using the auth instance and standalone functions
   login: async (email: string, pass: string): Promise<User | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
@@ -59,14 +58,16 @@ export const db = {
     }
   },
 
-  // Modular registration using the auth instance and standalone functions
   registerUser: async (userData: any): Promise<{ success: boolean, message: string }> => {
     try {
-      const email = `${userData.username.toLowerCase()}@venda-easy.com`; // Mock email for the application logic
+      // Limpar username de espaços e caracteres que invalidam o e-mail
+      const sanitizedUsername = userData.username.trim().toLowerCase().replace(/\s+/g, '');
+      const email = `${sanitizedUsername}@venda-easy.com`;
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
       
       const newUser: User = {
-        username: userData.username,
+        username: sanitizedUsername,
         name: userData.name,
         role: userData.role,
         uid: userCredential.user.uid
@@ -77,16 +78,18 @@ export const db = {
       
       return { success: true, message: 'Usuário cadastrado com sucesso no Firebase!' };
     } catch (error: any) {
-      return { success: false, message: error.message };
+      let msg = error.message;
+      if (error.code === 'auth/invalid-email') msg = 'Nome de usuário inválido para geração de credencial.';
+      if (error.code === 'auth/email-already-in-use') msg = 'Este nome de usuário já está em uso.';
+      if (error.code === 'auth/weak-password') msg = 'A senha deve ter pelo menos 6 caracteres.';
+      return { success: false, message: msg };
     }
   },
 
-  // Modular logout using the auth instance
   logout: async () => {
     await signOut(auth);
   },
 
-  // Modular auth state listener using standalone function
   getAuthUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       onAuthStateChanged(auth, async (firebaseUser) => {
@@ -106,7 +109,6 @@ export const db = {
     return snapshot.docs.map(doc => doc.data() as User);
   },
 
-  // --- SHOP INFO ---
   getShopInfo: async (): Promise<ShopInfo> => {
     const shopDoc = await getDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'));
     return shopDoc.exists() ? (shopDoc.data() as ShopInfo) : DEFAULT_SHOP_INFO;
@@ -116,7 +118,6 @@ export const db = {
     await setDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'), info);
   },
 
-  // --- PRODUCTS ---
   getProducts: async (): Promise<Product[]> => {
     const q = query(collection(firestore, COLLECTIONS.PRODUCTS), orderBy('name'));
     const snapshot = await getDocs(q);
@@ -133,10 +134,9 @@ export const db = {
   },
 
   getTopSellingProducts: (products: Product[], limit: number): Product[] => {
-    return products.slice(0, limit);
+    return [...products].sort((a, b) => b.stockQuantity - a.stockQuantity).slice(0, limit);
   },
 
-  // --- SALES & BUDGETS ---
   getSales: async (sellerUsername?: string): Promise<Sale[]> => {
     let q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     if (sellerUsername) {
