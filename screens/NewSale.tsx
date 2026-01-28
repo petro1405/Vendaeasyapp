@@ -21,7 +21,9 @@ import {
   Phone,
   Calendar as CalendarIcon,
   Percent,
-  TrendingDown
+  TrendingDown,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -50,6 +52,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const [lastId, setLastId] = useState<string | null>(null);
   const [isBudgetMode, setIsBudgetMode] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Sale Options
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -165,71 +168,113 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const discountAmount = cartTotal * (discountPercent / 100);
   const finalTotal = cartTotal - discountAmount;
 
+  const validateSale = () => {
+    if (!selectedCustomer) {
+      alert("Selecione um cliente para continuar.");
+      return false;
+    }
+    if (cart.length === 0) {
+      alert("O carrinho está vazio.");
+      return false;
+    }
+    if (isDelivery) {
+      if (!deliveryDate) {
+        alert("Informe a data da entrega.");
+        return false;
+      }
+      if (!deliveryAddress || deliveryAddress.trim().length < 5) {
+        alert("Informe um endereço de entrega válido.");
+        return false;
+      }
+      if (!deliveryPhone) {
+        alert("Informe um telefone de contato para a entrega.");
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleFinishSale = async () => {
-    if (!selectedCustomer || !currentUser) return;
+    if (!validateSale() || !currentUser || isProcessing) return;
 
-    const saleId = `SALE-${Date.now()}`;
-    const newSale: Sale = {
-      id: saleId,
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      date: new Date().toISOString(),
-      subtotal: cartTotal,
-      discount: discountAmount,
-      total: finalTotal,
-      paymentMethod: paymentMethod,
-      sellerUsername: currentUser.username,
-      isDelivery: isDelivery,
-      deliveryDate: isDelivery ? deliveryDate : undefined,
-      deliveryAddress: isDelivery ? deliveryAddress : undefined,
-      deliveryPhone: isDelivery ? deliveryPhone : undefined
-    };
+    setIsProcessing(true);
+    try {
+      const saleId = `SALE-${Date.now()}`;
+      const newSale: Sale = {
+        id: saleId,
+        customerId: selectedCustomer!.id,
+        customerName: selectedCustomer!.name,
+        date: new Date().toISOString(),
+        subtotal: cartTotal,
+        discount: discountAmount,
+        total: finalTotal,
+        paymentMethod: paymentMethod,
+        sellerUsername: currentUser.username,
+        isDelivery: isDelivery,
+        deliveryDate: isDelivery ? deliveryDate : undefined,
+        deliveryAddress: isDelivery ? deliveryAddress : undefined,
+        deliveryPhone: isDelivery ? deliveryPhone : undefined
+      };
 
-    const saleItems: SaleItem[] = cart.map(item => ({
-      id: `ITEM-${item.id}-${Date.now()}`,
-      saleId: saleId,
-      productId: item.id,
-      productName: item.name,
-      quantity: item.cartQuantity,
-      unitPrice: item.price
-    }));
+      const saleItems: SaleItem[] = cart.map(item => ({
+        id: `ITEM-${item.id}-${Date.now()}`,
+        saleId: saleId,
+        productId: item.id,
+        productName: item.name,
+        quantity: item.cartQuantity,
+        unitPrice: item.price
+      }));
 
-    await db.createSale(newSale, saleItems);
-    setLastId(saleId);
-    setIsBudgetMode(false);
-    setStep(SaleStep.FINISHED);
+      await db.createSale(newSale, saleItems);
+      setLastId(saleId);
+      setIsBudgetMode(false);
+      setStep(SaleStep.FINISHED);
+    } catch (error: any) {
+      console.error("Erro ao finalizar venda:", error);
+      alert("Ocorreu um erro ao salvar a venda: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleGenerateBudget = async () => {
-    if (!selectedCustomer || !currentUser) return;
+    if (!selectedCustomer || !currentUser || isProcessing) return;
 
-    const budgetId = `BUDGET-${Date.now()}`;
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 7);
+    setIsProcessing(true);
+    try {
+      const budgetId = `BUDGET-${Date.now()}`;
+      const validUntil = new Date();
+      validUntil.setDate(validUntil.getDate() + 7);
 
-    const newBudget: Budget = {
-      id: budgetId,
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      date: new Date().toISOString(),
-      total: cartTotal,
-      validUntil: validUntil.toISOString(),
-      sellerUsername: currentUser.username
-    };
+      const newBudget: Budget = {
+        id: budgetId,
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        date: new Date().toISOString(),
+        total: cartTotal,
+        validUntil: validUntil.toISOString(),
+        sellerUsername: currentUser.username
+      };
 
-    const budgetItems: BudgetItem[] = cart.map(item => ({
-      id: `BITEM-${item.id}-${Date.now()}`,
-      budgetId: budgetId,
-      productId: item.id,
-      productName: item.name,
-      quantity: item.cartQuantity,
-      unitPrice: item.price
-    }));
+      const budgetItems: BudgetItem[] = cart.map(item => ({
+        id: `BITEM-${item.id}-${Date.now()}`,
+        budgetId: budgetId,
+        productId: item.id,
+        productName: item.name,
+        quantity: item.cartQuantity,
+        unitPrice: item.price
+      }));
 
-    await db.createBudget(newBudget, budgetItems);
-    setLastId(budgetId);
-    setIsBudgetMode(true);
-    setStep(SaleStep.FINISHED);
+      await db.createBudget(newBudget, budgetItems);
+      setLastId(budgetId);
+      setIsBudgetMode(true);
+      setStep(SaleStep.FINISHED);
+    } catch (error: any) {
+      console.error("Erro ao gerar orçamento:", error);
+      alert("Erro ao gerar orçamento: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const renderStep = () => {
@@ -403,40 +448,45 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 {isDelivery && (
                   <div className="space-y-4 p-5 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <CalendarIcon size={12} /> Data da Entrega
+                      <label className={`text-[10px] font-black uppercase ml-1 flex items-center gap-1 ${!deliveryDate ? 'text-red-500' : 'text-indigo-600'}`}>
+                        <CalendarIcon size={12} /> Data da Entrega *
                       </label>
                       <input 
                         type="date"
-                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 ${!deliveryDate ? 'border-red-300 bg-red-50/30' : 'border-indigo-200 text-indigo-900'}`}
                         value={deliveryDate}
                         onChange={(e) => setDeliveryDate(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <MapPin size={12} /> Endereço Completo
+                      <label className={`text-[10px] font-black uppercase ml-1 flex items-center gap-1 ${!deliveryAddress ? 'text-red-500' : 'text-indigo-600'}`}>
+                        <MapPin size={12} /> Endereço Completo *
                       </label>
                       <input 
                         type="text"
                         placeholder="Rua, Número, Bairro..."
-                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-medium outline-none"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-sm font-medium outline-none ${!deliveryAddress ? 'border-red-300 bg-red-50/30' : 'border-indigo-200'}`}
                         value={deliveryAddress}
                         onChange={(e) => setDeliveryAddress(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <Phone size={12} /> Contato do Recebedor
+                      <label className={`text-[10px] font-black uppercase ml-1 flex items-center gap-1 ${!deliveryPhone ? 'text-red-500' : 'text-indigo-600'}`}>
+                        <Phone size={12} /> Contato do Recebedor *
                       </label>
                       <input 
                         type="tel"
                         placeholder="(00) 00000-0000"
-                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-medium outline-none"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-sm font-medium outline-none ${!deliveryPhone ? 'border-red-300 bg-red-50/30' : 'border-indigo-200'}`}
                         value={deliveryPhone}
                         onChange={(e) => setDeliveryPhone(e.target.value)}
                       />
                     </div>
+                    {(!deliveryDate || !deliveryAddress || !deliveryPhone) && (
+                      <p className="text-[9px] font-bold text-red-500 flex items-center gap-1 mt-1">
+                        <AlertTriangle size={10} /> Preencha todos os campos obrigatórios para entrega.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -533,15 +583,22 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
             <button 
               onClick={handleFinishSale}
-              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all"
+              disabled={isProcessing}
+              className={`w-full text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 shadow-indigo-100'}`}
             >
-              Finalizar Venda <CheckCircle2 size={20} />
+              {isProcessing ? (
+                <>Processando... <Loader2 className="animate-spin" size={20} /></>
+              ) : (
+                <>Finalizar Venda <CheckCircle2 size={20} /></>
+              )}
             </button>
+            
             <button 
               onClick={handleGenerateBudget}
-              className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all"
+              disabled={isProcessing}
+              className={`w-full text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-amber-500 shadow-amber-100'}`}
             >
-              Gerar Orçamento <FileText size={20} />
+              {isProcessing ? 'Gerando...' : <>Gerar Orçamento <FileText size={20} /></>}
             </button>
           </div>
         );
