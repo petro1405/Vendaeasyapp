@@ -19,7 +19,9 @@ import {
   Truck,
   MapPin,
   Phone,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Percent,
+  TrendingDown
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -92,7 +94,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     if (selectedCustomer) {
       setDeliveryAddress(selectedCustomer.address || '');
       setDeliveryPhone(selectedCustomer.phone || '');
-      // Data padrão: amanhã
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDeliveryDate(tomorrow.toISOString().split('T')[0]);
@@ -444,27 +445,86 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
               <div className="pt-2 space-y-4">
                 <div className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Pagamento</div>
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => setPaymentMethod('pix')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <button onClick={() => { setPaymentMethod('pix'); }} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
                     <QrCode size={18} /> <span className="text-[9px] font-black uppercase">PIX</span>
                   </button>
-                  <button onClick={() => setPaymentMethod('dinheiro')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'dinheiro' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <button onClick={() => { setPaymentMethod('dinheiro'); }} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'dinheiro' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
                     <span className="text-lg font-bold">R$</span> <span className="text-[9px] font-black uppercase">Dinheiro</span>
                   </button>
-                  <button onClick={() => setPaymentMethod('cartao')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'cartao' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <button onClick={() => { setPaymentMethod('cartao'); }} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'cartao' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
                     <CreditCard size={18} /> <span className="text-[9px] font-black uppercase">Cartão</span>
                   </button>
+                </div>
+              </div>
+
+              {/* DESCONTO DINÂMICO PARA PIX/DINHEIRO */}
+              <div className={`p-4 rounded-3xl border transition-all duration-300 space-y-3 ${
+                (paymentMethod === 'pix' || paymentMethod === 'dinheiro') 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-gray-50 border-gray-100 opacity-60'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Percent size={14} className={(paymentMethod === 'pix' || paymentMethod === 'dinheiro') ? 'text-green-600' : 'text-gray-400'} />
+                    <span className={`text-[10px] font-black uppercase tracking-wider ${
+                      (paymentMethod === 'pix' || paymentMethod === 'dinheiro') ? 'text-green-700' : 'text-gray-500'
+                    }`}>
+                      { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') ? 'Desconto PIX/Dinheiro (%)' : 'Desconto (%)' }
+                    </span>
+                  </div>
+                  { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') && (
+                    <span className="bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase">Incentivo Ativo</span>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input 
+                      type="number"
+                      placeholder="0"
+                      className="w-full pl-4 pr-10 py-3 bg-white border border-green-100 rounded-2xl text-lg font-black text-green-700 outline-none focus:ring-2 focus:ring-green-500"
+                      value={discountPercent || ''}
+                      onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 font-black">%</div>
+                  </div>
+                  
+                  { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') && (
+                    <div className="flex gap-1">
+                      {[5, 10].map(val => (
+                        <button 
+                          key={val}
+                          onClick={() => setDiscountPercent(val)}
+                          className={`w-12 h-12 rounded-2xl font-black text-xs transition-all ${
+                            discountPercent === val ? 'bg-green-600 text-white' : 'bg-white text-green-600 border border-green-100'
+                          }`}
+                        >
+                          {val}%
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* TOTAIS */}
               <div className="pt-4 border-t-2 border-dashed border-gray-100 space-y-2">
                 <div className="flex justify-between items-center text-gray-400">
-                  <span className="text-[10px] font-black uppercase">Subtotal</span>
+                  <span className="text-[10px] font-black uppercase">Subtotal Bruto</span>
                   <span className="font-bold">R$ {cartTotal.toFixed(2)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between items-center text-green-600 animate-in fade-in slide-in-from-right-2">
+                    <div className="flex items-center gap-1">
+                      <TrendingDown size={14} />
+                      <span className="text-[10px] font-black uppercase">Desconto aplicado ({discountPercent}%)</span>
+                    </div>
+                    <span className="font-bold">- R$ {discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-end pt-2">
                   <div>
-                    <div className="text-[10px] text-gray-400 font-black uppercase">Total a Pagar</div>
+                    <div className="text-[10px] text-gray-400 font-black uppercase">Total Líquido</div>
                     <div className="font-black text-4xl text-gray-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</div>
                   </div>
                 </div>
@@ -473,13 +533,13 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
             <button 
               onClick={handleFinishSale}
-              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest"
+              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all"
             >
               Finalizar Venda <CheckCircle2 size={20} />
             </button>
             <button 
               onClick={handleGenerateBudget}
-              className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest"
+              className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest active:scale-95 transition-all"
             >
               Gerar Orçamento <FileText size={20} />
             </button>
