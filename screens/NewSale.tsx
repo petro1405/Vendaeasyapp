@@ -19,7 +19,7 @@ import {
   Truck,
   MapPin,
   Phone,
-  Calendar
+  Calendar as CalendarIcon
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -92,7 +92,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     if (selectedCustomer) {
       setDeliveryAddress(selectedCustomer.address || '');
       setDeliveryPhone(selectedCustomer.phone || '');
-      // Default delivery date to tomorrow
+      // Data padrão: amanhã
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDeliveryDate(tomorrow.toISOString().split('T')[0]);
@@ -237,7 +237,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         return (
           <div className="p-4 space-y-4">
             <h2 className="text-xl font-bold text-gray-800">Selecione o Cliente</h2>
-            
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input 
@@ -279,23 +278,18 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
               ) : (
                 <div className="text-center py-10 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
                   <p className="text-xs text-gray-400 font-bold uppercase">Nenhum cliente encontrado</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Cadastre o cliente na aba de Clientes.</p>
                 </div>
               )}
             </div>
-
-            <div className="pt-2">
-              <button 
-                onClick={() => {
-                  const fastCustomer = { id: '0', name: 'Consumidor Final', phone: '(00) 00000-0000' } as Customer;
-                  setSelectedCustomer(fastCustomer);
-                  setStep(SaleStep.ADD_PRODUCTS);
-                }}
-                className="w-full py-4 text-xs font-black text-indigo-600 bg-indigo-50 rounded-2xl border border-indigo-100 uppercase tracking-widest"
-              >
-                Venda Rápida (Consumidor Final)
-              </button>
-            </div>
+            <button 
+              onClick={() => {
+                setSelectedCustomer({ id: '0', name: 'Consumidor Final', phone: '(00) 00000-0000' } as Customer);
+                setStep(SaleStep.ADD_PRODUCTS);
+              }}
+              className="w-full py-4 text-xs font-black text-indigo-600 bg-indigo-50 rounded-2xl border border-indigo-100 uppercase tracking-widest"
+            >
+              Consumidor Final (Venda Rápida)
+            </button>
           </div>
         );
 
@@ -308,9 +302,9 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
             <div className="bg-white p-4 border-b border-gray-200 space-y-3 sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <button onClick={() => setStep(SaleStep.SELECT_CUSTOMER)} className="text-indigo-600 flex items-center gap-1 font-semibold text-sm">
-                  <ChevronLeft size={16} /> Cliente: {selectedCustomer?.name.split(' ')[0]}
+                  <ChevronLeft size={16} /> {selectedCustomer?.name.split(' ')[0]}
                 </button>
-                <div className="text-xs font-bold text-gray-400 uppercase">Carrinho: {cart.reduce((a, b) => a + b.cartQuantity, 0)}</div>
+                <div className="text-xs font-bold text-gray-400 uppercase">Itens: {cart.reduce((a, b) => a + b.cartQuantity, 0)}</div>
               </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -323,7 +317,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg">
+                <button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 text-white p-2.5 rounded-xl">
                   <Camera size={20} />
                 </button>
               </div>
@@ -340,12 +334,12 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     </div>
                     {inCart ? (
                       <div className="flex items-center gap-3 bg-indigo-50 p-1 rounded-xl">
-                        <button onClick={() => updateCartQuantity(product.id, -1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm"><Minus size={14} /></button>
-                        <span className="font-black text-indigo-700 w-6 text-center">{inCart.cartQuantity}</span>
-                        <button onClick={() => updateCartQuantity(product.id, 1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg shadow-sm"><Plus size={14} /></button>
+                        <button onClick={() => updateCartQuantity(product.id, -1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg"><Minus size={14} /></button>
+                        <span className="font-black text-indigo-700">{inCart.cartQuantity}</span>
+                        <button onClick={() => updateCartQuantity(product.id, 1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg"><Plus size={14} /></button>
                       </div>
                     ) : (
-                      <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-indigo-600 text-white rounded-xl shadow-md active:scale-95 transition-all">
+                      <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-indigo-600 text-white rounded-xl">
                         <Plus size={20} />
                       </button>
                     )}
@@ -355,17 +349,16 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
             </div>
 
             <div className="fixed bottom-16 left-0 right-0 max-w-md mx-auto p-4 pointer-events-none">
-              <div className="bg-indigo-600 rounded-[2rem] shadow-2xl p-4 text-white flex items-center justify-between pointer-events-auto border border-white/10">
+              <div className="bg-indigo-600 rounded-[2rem] shadow-2xl p-4 text-white flex items-center justify-between pointer-events-auto">
                 <div className="ml-4">
-                  <div className="text-[10px] opacity-70 font-black uppercase tracking-widest">Total</div>
+                  <div className="text-[10px] opacity-70 font-black uppercase">Total</div>
                   <div className="text-2xl font-black">R$ {cartTotal.toFixed(2)}</div>
                 </div>
                 <button 
                   onClick={() => cart.length > 0 && setStep(SaleStep.CONFIRMATION)}
-                  disabled={cart.length === 0}
-                  className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-2 shadow-xl active:scale-95 transition-all"
+                  className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-2"
                 >
-                  Pagar <ArrowRight size={18} />
+                  Confirmar <ArrowRight size={18} />
                 </button>
               </div>
             </div>
@@ -376,69 +369,69 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         return (
           <div className="p-4 space-y-4 pb-24">
             <button onClick={() => setStep(SaleStep.ADD_PRODUCTS)} className="text-indigo-600 flex items-center gap-1 font-black text-xs uppercase bg-indigo-50 px-4 py-2 rounded-full">
-              <ChevronLeft size={16} /> Voltar ao Carrinho
+              <ChevronLeft size={16} /> Voltar
             </button>
             
             <div className="bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm space-y-6">
-              {/* Cliente Info */}
               <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
                 <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600"><User size={20} /></div>
                 <div>
-                  <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Cliente</div>
+                  <div className="text-[10px] text-gray-400 font-black uppercase">Cliente</div>
                   <div className="font-black text-gray-800">{selectedCustomer?.name}</div>
                 </div>
               </div>
 
-              {/* Entrega Options */}
+              {/* TIPO DE ENTREGA */}
               <div className="space-y-4">
+                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Modalidade</div>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setIsDelivery(false)}
-                    className={`flex-1 py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${!isDelivery ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                    className={`flex-1 py-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${!isDelivery ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
                   >
-                    <CheckCircle2 size={18} /> <span className="text-[10px] font-black uppercase">Retirada</span>
+                    <CheckCircle2 size={20} /> <span className="text-[10px] font-black uppercase">Retirada</span>
                   </button>
                   <button 
                     onClick={() => setIsDelivery(true)}
-                    className={`flex-1 py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${isDelivery ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                    className={`flex-1 py-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${isDelivery ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
                   >
-                    <Truck size={18} /> <span className="text-[10px] font-black uppercase">Entrega</span>
+                    <Truck size={20} /> <span className="text-[10px] font-black uppercase">Entrega</span>
                   </button>
                 </div>
 
                 {isDelivery && (
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-3xl border border-gray-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="space-y-4 p-5 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <Calendar size={10} /> Data Programada
+                        <CalendarIcon size={12} /> Data da Entrega
                       </label>
                       <input 
                         type="date"
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-800 outline-none"
+                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500"
                         value={deliveryDate}
                         onChange={(e) => setDeliveryDate(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <MapPin size={10} /> Endereço de Entrega
+                        <MapPin size={12} /> Endereço Completo
                       </label>
                       <input 
                         type="text"
-                        placeholder="Endereço completo"
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium outline-none"
+                        placeholder="Rua, Número, Bairro..."
+                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-medium outline-none"
                         value={deliveryAddress}
                         onChange={(e) => setDeliveryAddress(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                        <Phone size={10} /> Contato de Entrega
+                        <Phone size={12} /> Contato do Recebedor
                       </label>
                       <input 
                         type="tel"
-                        placeholder="Telefone para contato"
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium outline-none"
+                        placeholder="(00) 00000-0000"
+                        className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-sm font-medium outline-none"
                         value={deliveryPhone}
                         onChange={(e) => setDeliveryPhone(e.target.value)}
                       />
@@ -447,49 +440,31 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 )}
               </div>
 
-              {/* Pagamento Options */}
+              {/* FORMA DE PAGAMENTO */}
               <div className="pt-2 space-y-4">
-                <div className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Forma de Pagamento</div>
+                <div className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Pagamento</div>
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => setPaymentMethod('pix')} className={`py-3 rounded-2xl flex flex-col items-center gap-1 border transition-all ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
+                  <button onClick={() => setPaymentMethod('pix')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
                     <QrCode size={18} /> <span className="text-[9px] font-black uppercase">PIX</span>
                   </button>
-                  <button onClick={() => setPaymentMethod('dinheiro')} className={`py-3 rounded-2xl flex flex-col items-center gap-1 border transition-all ${paymentMethod === 'dinheiro' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
-                    <div className="text-lg font-bold">R$</div> <span className="text-[9px] font-black uppercase">Dinheiro</span>
+                  <button onClick={() => setPaymentMethod('dinheiro')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'dinheiro' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
+                    <span className="text-lg font-bold">R$</span> <span className="text-[9px] font-black uppercase">Dinheiro</span>
                   </button>
-                  <button onClick={() => setPaymentMethod('cartao')} className={`py-3 rounded-2xl flex flex-col items-center gap-1 border transition-all ${paymentMethod === 'cartao' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
+                  <button onClick={() => setPaymentMethod('cartao')} className={`py-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${paymentMethod === 'cartao' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400'}`}>
                     <CreditCard size={18} /> <span className="text-[9px] font-black uppercase">Cartão</span>
                   </button>
                 </div>
-
-                <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-indigo-700 font-black text-[10px] uppercase tracking-wider">Desconto (%)</div>
-                  </div>
-                  <input 
-                    type="number"
-                    className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-2xl text-lg font-black text-indigo-600 outline-none"
-                    value={discountPercent || ''}
-                    onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                  />
-                </div>
               </div>
 
-              {/* Totais */}
+              {/* TOTAIS */}
               <div className="pt-4 border-t-2 border-dashed border-gray-100 space-y-2">
                 <div className="flex justify-between items-center text-gray-400">
-                  <span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span>
-                  <span className="font-bold text-sm">R$ {cartTotal.toFixed(2)}</span>
+                  <span className="text-[10px] font-black uppercase">Subtotal</span>
+                  <span className="font-bold">R$ {cartTotal.toFixed(2)}</span>
                 </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between items-center text-green-600">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Desconto ({discountPercent}%)</span>
-                    <span className="font-bold text-sm">- R$ {discountAmount.toFixed(2)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between items-end pt-2">
                   <div>
-                    <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Líquido</div>
+                    <div className="text-[10px] text-gray-400 font-black uppercase">Total a Pagar</div>
                     <div className="font-black text-4xl text-gray-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</div>
                   </div>
                 </div>
@@ -498,15 +473,15 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
             <button 
               onClick={handleFinishSale}
-              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
+              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest"
             >
               Finalizar Venda <CheckCircle2 size={20} />
             </button>
             <button 
               onClick={handleGenerateBudget}
-              className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest text-sm"
+              className="w-full bg-amber-500 text-white font-black py-5 rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest"
             >
-              Salvar Orçamento <FileText size={20} />
+              Gerar Orçamento <FileText size={20} />
             </button>
           </div>
         );
@@ -514,15 +489,15 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       case SaleStep.FINISHED:
         return (
           <div className="p-4 flex flex-col items-center justify-center min-h-[70vh] space-y-6">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center animate-bounce shadow-lg ${isBudgetMode ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-              {isBudgetMode ? <FileText size={56} /> : <CheckCircle2 size={56} />}
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center bg-green-100 text-green-600 animate-bounce`}>
+              <CheckCircle2 size={56} />
             </div>
             <div className="text-center">
-              <h2 className="text-3xl font-black text-gray-800">{isBudgetMode ? 'Orçamento OK!' : 'Venda Concluída!'}</h2>
+              <h2 className="text-3xl font-black text-gray-800">Concluído!</h2>
               <p className="text-gray-500 font-medium">O registro foi salvo com sucesso.</p>
             </div>
-            {lastId && <Receipt saleId={lastId} isBudget={isBudgetMode} />}
-            <button onClick={isBudgetMode ? onBudgetComplete : onComplete} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all uppercase tracking-widest text-sm">Continuar</button>
+            {lastId && <Receipt saleId={lastId} isBudget={isBudgetMode} initialType={isDelivery ? 'delivery' : 'fiscal'} />}
+            <button onClick={isBudgetMode ? onBudgetComplete : onComplete} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest">Voltar ao Início</button>
           </div>
         );
     }

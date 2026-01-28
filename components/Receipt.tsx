@@ -53,20 +53,15 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     </div>
   );
 
-  const expired = isBudget && (entity as any).validUntil && new Date((entity as any).validUntil) < new Date();
   const sale = entity as Sale;
+  const expired = isBudget && (entity as any).validUntil && new Date((entity as any).validUntil) < new Date();
 
   const handleShareWhatsApp = () => {
-    const title = isBudget ? 'ORCAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'COMPROVANTE DE COMPRA');
+    const title = isBudget ? 'ORÇAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'COMPROVANTE');
     let text = `*${title} - ${shopInfo.name}*\n\n`;
     text += `Cliente: ${entity.customerName}\n`;
     text += `Data: ${new Date(entity.date).toLocaleDateString('pt-BR')}\n`;
     
-    if (isBudget && (entity as any).validUntil) {
-      text += `Validade: ${new Date((entity as any).validUntil).toLocaleDateString('pt-BR')}\n`;
-      if (expired) text += `AVISO: ESTE ORCAMENTO ESTA EXPIRADO\n`;
-    }
-
     if (!isBudget && sale.isDelivery && printType === 'delivery') {
       text += `\n*DADOS DE ENTREGA:*\n`;
       text += `Data Agendada: ${new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}\n`;
@@ -76,25 +71,11 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     
     text += `\n--------------------------\n`;
     items.forEach(item => {
-      text += `- ${item.productName}\n  Qtd: ${item.quantity} x R$ ${item.unitPrice.toFixed(2)} = R$ ${(item.quantity * item.unitPrice).toFixed(2)}\n`;
+      text += `- ${item.productName}\n  ${item.quantity}x R$ ${item.unitPrice.toFixed(2)} = R$ ${(item.quantity * item.unitPrice).toFixed(2)}\n`;
     });
     text += `--------------------------\n`;
+    text += `*TOTAL: R$ ${entity.total.toFixed(2)}*\n`;
     
-    if (!isBudget && sale.discount && sale.discount > 0) {
-      text += `Subtotal: R$ ${sale.subtotal?.toFixed(2)}\n`;
-      text += `Desconto: - R$ ${sale.discount?.toFixed(2)}\n`;
-    }
-    
-    text += `\n*TOTAL: R$ ${entity.total.toFixed(2)}*\n`;
-    if (!isBudget && sale.paymentMethod) {
-      text += `Pagamento: ${sale.paymentMethod.toUpperCase()}\n`;
-    }
-    text += `\n--------------------------\n`;
-    
-    text += isBudget 
-      ? `Este orcamento e valido ate ${new Date((entity as any).validUntil).toLocaleDateString('pt-BR')} conforme disponibilidade de estoque.` 
-      : shopInfo.receiptMessage || `Obrigado pela preferencia! Guarde este recibo para retirada.`;
-
     const encodedText = encodeURIComponent(text);
     window.open(`https://wa.me/?text=${encodedText}`, '_blank');
   };
@@ -106,128 +87,96 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
 
   return (
     <div className="w-full space-y-4">
-      {expired && (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 text-red-600 no-print">
-          <AlertTriangle size={24} className="shrink-0" />
-          <div>
-            <div className="font-black text-xs uppercase tracking-tight">Orcamento Expirado</div>
-            <div className="text-[10px] font-medium opacity-80">A validade terminou em {new Date((entity as any).validUntil).toLocaleDateString('pt-BR')}.</div>
-          </div>
-        </div>
-      )}
-
       <div 
         id="printable-area"
-        className="bg-white p-4 text-[12px] font-mono leading-tight receipt-font mx-auto max-w-[300px] border border-gray-100 shadow-sm"
+        className="bg-white p-6 text-[11px] font-mono leading-tight receipt-font mx-auto max-w-[320px] border border-gray-100"
       >
-        <div className="text-center border-b-2 border-black pb-4 mb-4 flex flex-col items-center gap-2">
-          {shopInfo.logo && (
-            <div className="w-16 h-16 mb-2 flex items-center justify-center overflow-hidden">
-              <img src={shopInfo.logo} alt="Logo" className="max-w-[64px] max-h-[64px] object-contain" />
-            </div>
-          )}
-          <div className="font-bold text-lg uppercase tracking-tighter">{shopInfo.name}</div>
-          <div className="text-[10px] uppercase">{shopInfo.address}</div>
-          <div className="text-[10px]">CNPJ: {shopInfo.cnpj} | Tel: {shopInfo.phone}</div>
+        <div className="text-center border-b-2 border-black pb-4 mb-4">
+          <div className="font-bold text-lg uppercase">{shopInfo.name}</div>
+          <div className="text-[9px] uppercase">{shopInfo.address}</div>
+          <div className="text-[9px]">CNPJ: {shopInfo.cnpj}</div>
         </div>
 
-        {/* DADOS DE ENTREGA EM DESTAQUE NO TOPO (MODO ENTREGA) */}
+        {/* QUADRO DE ENTREGA - O PONTO PRINCIPAL DO PEDIDO */}
         {!isBudget && sale.isDelivery && printType === 'delivery' && (
-          <div className="mb-4 p-2 border-2 border-black space-y-1">
-            <div className="font-black text-center border-b border-black mb-1">DADOS PARA ENTREGA</div>
+          <div className="mb-4 p-3 border-4 border-black space-y-2">
+            <div className="font-black text-center border-b-2 border-black pb-1 mb-1 text-sm">ORDEM DE ENTREGA</div>
             <div className="flex items-start gap-1">
-              <Calendar size={10} className="shrink-0 mt-0.5" />
-              <span className="font-bold">DATA: {new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}</span>
+              <Calendar size={12} className="shrink-0 mt-0.5" />
+              <span className="font-black text-xs uppercase">DATA: {new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}</span>
             </div>
-            <div className="flex items-start gap-1">
-              <MapPin size={10} className="shrink-0 mt-0.5" />
-              <span className="font-bold">ENDEREÇO: {sale.deliveryAddress}</span>
+            <div className="flex items-start gap-1 border-t border-black pt-1">
+              <MapPin size={12} className="shrink-0 mt-0.5" />
+              <span className="font-black text-xs uppercase">LOCAL: {sale.deliveryAddress}</span>
             </div>
-            <div className="flex items-start gap-1">
-              <Phone size={10} className="shrink-0 mt-0.5" />
-              <span className="font-bold">CONTATO: {sale.deliveryPhone}</span>
+            <div className="flex items-start gap-1 border-t border-black pt-1">
+              <Phone size={12} className="shrink-0 mt-0.5" />
+              <span className="font-black text-xs uppercase">FONE: {sale.deliveryPhone}</span>
             </div>
           </div>
         )}
 
-        <div className="mb-2 space-y-0.5 border-b border-dashed border-gray-400 pb-2">
-          <div className="flex justify-between font-bold">
-            <span>{isBudget ? 'ORCAMENTO' : printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'PEDIDO'}</span>
+        <div className="mb-2 space-y-1 border-b border-dashed border-black pb-2">
+          <div className="flex justify-between font-black text-sm">
+            <span>{isBudget ? 'ORÇAMENTO' : printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'RECIBO DE VENDA'}</span>
             <span>#{entity.id.split('-').pop()}</span>
           </div>
-          <div className="flex justify-between text-[10px]">
-            <span>PDV: {shopInfo.pdvName || 'TERMINAL-01'}</span>
+          <div className="flex justify-between font-bold">
+            <span>CLIENTE:</span>
+            <span className="uppercase">{entity.customerName}</span>
+          </div>
+          <div className="flex justify-between opacity-70">
+            <span>EMISSÃO:</span>
             <span>{new Date(entity.date).toLocaleString('pt-BR')}</span>
           </div>
-          <div className="flex justify-between">
-            <span>CLIENTE:</span>
-            <span className="truncate max-w-[150px] uppercase font-bold">{entity.customerName}</span>
-          </div>
-          {!isBudget && sale.paymentMethod && (
-            <div className="flex justify-between">
-              <span>PAGAMENTO:</span>
-              <span className="uppercase font-bold">{sale.paymentMethod}</span>
-            </div>
-          )}
         </div>
 
         <div className="mb-2">
-          <div className="flex justify-between font-bold border-b border-black mb-1 text-[10px]">
+          <div className="flex justify-between font-black border-b border-black mb-1">
             <span className="w-1/2">PRODUTO</span>
             <span className="w-1/6 text-right">QTD</span>
             <span className="w-1/3 text-right">TOTAL</span>
           </div>
           {items.map((item: any, idx: number) => (
-            <div key={idx} className="flex justify-between py-0.5 border-b border-gray-50 last:border-0">
-              <span className="w-1/2 truncate uppercase text-[10px]">{item.productName}</span>
+            <div key={idx} className="flex justify-between py-1 border-b border-gray-100 last:border-0">
+              <span className="w-1/2 uppercase">{item.productName}</span>
               <span className="w-1/6 text-right">{item.quantity}</span>
               <span className="w-1/3 text-right">R${(item.quantity * item.unitPrice).toFixed(2)}</span>
             </div>
           ))}
         </div>
 
-        <div className="border-t-2 border-black pt-2 mb-4 space-y-1">
-          {!isBudget && sale.discount && sale.discount > 0 && (
-            <>
-              <div className="flex justify-between text-[10px]">
-                <span>SUBTOTAL BRUTO</span>
-                <span>R$ {sale.subtotal?.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-600">
-                <span>DESCONTO APLICADO</span>
-                <span>- R$ {sale.discount?.toFixed(2)}</span>
-              </div>
-            </>
-          )}
+        <div className="border-t-2 border-black pt-2 mb-4">
           <div className="flex justify-between text-base font-black">
-            <span>{(!isBudget && sale.discount && sale.discount > 0) ? 'TOTAL LÍQUIDO' : 'VALOR TOTAL'}</span>
+            <span>TOTAL GERAL</span>
             <span>R$ {entity.total.toFixed(2)}</span>
           </div>
+          {!isBudget && sale.paymentMethod && (
+            <div className="text-[10px] font-bold mt-1 uppercase text-right">FORMA: {sale.paymentMethod}</div>
+          )}
         </div>
 
-        <div className="text-center text-[9px] mt-6 opacity-80 uppercase">
-          {isBudget 
-            ? `--- ORCAMENTO VALIDO ATE ${new Date((entity as any).validUntil).toLocaleDateString('pt-BR')} ---` 
-            : shopInfo.receiptMessage ? `--- ${shopInfo.receiptMessage} ---` : '--- OBRIGADO PELA PREFERENCIA ---'}
+        <div className="text-center text-[9px] mt-6 border-t border-black pt-2 opacity-80 uppercase italic">
+          {shopInfo.receiptMessage || 'Obrigado pela preferência!'}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 no-print">
         <button 
           onClick={handleShareWhatsApp}
-          className={`w-full ${isBudget ? 'bg-amber-500' : 'bg-green-600'} text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-sm`}
+          className="w-full bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-sm"
         >
-          <Send size={18} /> WhatsApp
+          <Send size={18} /> Enviar WhatsApp
         </button>
         <div className="grid grid-cols-3 gap-2">
           <button onClick={() => handlePrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
-            <ReceiptIcon size={20} /> <span className="text-[9px]">Cupom</span>
+            <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
           </button>
           <button onClick={() => handlePrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
             <Truck size={20} /> <span className="text-[9px]">Entrega</span>
           </button>
-          <button onClick={() => handlePrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-amber-500 text-white border-amber-600' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-            <CreditCard size={20} /> <span className="text-[9px]">Pagam.</span>
+          <button onClick={() => handlePrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-100'}`}>
+            <CreditCard size={20} /> <span className="text-[9px]">Recibo</span>
           </button>
         </div>
       </div>
