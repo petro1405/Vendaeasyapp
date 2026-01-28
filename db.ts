@@ -33,12 +33,12 @@ const COLLECTIONS = {
 
 const DEFAULT_SHOP_INFO: ShopInfo = {
   id: 1,
-  name: "Deposito ConstruFacil",
+  name: "Depósito ConstruFácil",
   cnpj: "12.345.678/0001-99",
   phone: "(11) 98765-4321",
-  address: "Av. das Industrias, 500 - Distrito Industrial",
+  address: "Av. das Indústrias, 500 - Distrito Industrial",
   pdvName: "PDV-01",
-  receiptMessage: "Obrigado pela preferencia! Guarde este recibo."
+  receiptMessage: "Obrigado pela preferência! Guarde este recibo."
 };
 
 export const db = {
@@ -83,7 +83,8 @@ export const db = {
 
   getAuthUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
-      onAuthStateChanged(auth, async (firebaseUser) => {
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        unsubscribe();
         if (firebaseUser) {
           try {
             const userDoc = await getDoc(doc(firestore, COLLECTIONS.USERS, firebaseUser.uid));
@@ -98,7 +99,7 @@ export const db = {
     });
   },
 
-  // --- REAL-TIME LISTENERS (CLOUD SYNC) ---
+  // --- REAL-TIME LISTENERS ---
   subscribeProducts: (callback: (products: Product[]) => void) => {
     const q = query(collection(firestore, COLLECTIONS.PRODUCTS), orderBy('name'));
     return onSnapshot(q, (snapshot) => {
@@ -131,8 +132,12 @@ export const db = {
 
   // --- SHOP INFO ---
   getShopInfo: async (): Promise<ShopInfo> => {
-    const shopDoc = await getDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'));
-    return shopDoc.exists() ? (shopDoc.data() as ShopInfo) : DEFAULT_SHOP_INFO;
+    try {
+      const shopDoc = await getDoc(doc(firestore, COLLECTIONS.SHOP_INFO, 'main'));
+      return shopDoc.exists() ? (shopDoc.data() as ShopInfo) : DEFAULT_SHOP_INFO;
+    } catch (e) {
+      return DEFAULT_SHOP_INFO;
+    }
   },
 
   saveShopInfo: async (info: ShopInfo) => {
@@ -147,6 +152,83 @@ export const db = {
   updateProductStock: async (id: string | number, quantity: number) => {
     const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(id));
     await updateDoc(prodRef, { stockQuantity: quantity });
+  },
+
+  createSale: async (sale: Sale, items: SaleItem[]) => {
+    await setDoc(doc(firestore, COLLECTIONS.SALES, sale.id), { ...sale, items });
+    for (const item of items) {
+      const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(item.productId));
+      const prodSnap = await getDoc(prodRef);
+      if (prodSnap.exists()) {
+        const currentQty = prodSnap.data().stockQuantity;
+        await updateDoc(prodRef, { stockQuantity: currentQty - item.quantity });
+      }
+    }
+  },
+
+  createBudget: async (budget: Budget, items: BudgetItem[]) => {
+    await setDoc(doc(firestore, COLLECTIONS.BUDGETS, budget.id), { ...budget, items });
+  },
+
+  deleteBudget: async (id: string) => {
+    await deleteDoc(doc(firestore, COLLECTIONS.BUDGETS, id));
+  },
+
+  getBudgetItems: async (budgetId: string): Promise<BudgetItem[]> => {
+    const budgetDoc = await getDoc(doc(firestore, COLLECTIONS.BUDGETS, budgetId));
+    if (budgetDoc.exists()) {
+      return (budgetDoc.data() as Budget).items || [];
+    }
+    return [];
+  },
+
+  getSaleItems: async (saleId: string): Promise<SaleItem[]> => {
+    const saleDoc = await getDoc(doc(firestore, COLLECTIONS.SALES, saleId));
+    if (saleDoc.exists()) {
+      return (saleDoc.data() as Sale).items || [];
+    }
+    return [];
+  },
+
+  getTopSellingProducts: (products: Product[], limit: number): Product[] => {
+    return [...products].sort((a, b) => a.stockQuantity - b.stockQuantity).slice(0, limit);
+  },
+
+  getUsers: async (): Promise<User[]> => {
+    const q = query(collection(firestore, COLLECTIONS.USERS));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as User);
+  },
+
+  // --- DATABASE MAINTENANCE ---
+  resetDatabase: async () => {
+    if (confirm("ATENÇÃO: Deseja realmente restaurar as configurações da loja e deslogar? Isso NÃO apagará as vendas do Firebase, mas limpa o cache local.")) {
+      localStorage.clear();
+      await db.logout();
+      window.location.reload();
+    }
+  },
+
+  // Função para exportar dados (JSON)
+  exportData: async () => {
+    const shopInfo = await db.getShopInfo();
+    const products = await db.getProducts();
+    const sales = await db.getSales();
+    
+    const exportObj = {
+      shopInfo,
+      products,
+      sales,
+      exportDate: new Date().toISOString()
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `venda_easy_backup_${new Date().getTime()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
   },
 
   getProducts: async (): Promise<Product[]> => {
@@ -164,26 +246,6 @@ export const db = {
     return snapshot.docs.map(doc => doc.data() as Sale);
   },
 
-  getSaleItems: async (saleId: string): Promise<SaleItem[]> => {
-    const saleDoc = await getDoc(doc(firestore, COLLECTIONS.SALES, saleId));
-    if (saleDoc.exists()) {
-      return (saleDoc.data() as Sale).items || [];
-    }
-    return [];
-  },
-
-  createSale: async (sale: Sale, items: SaleItem[]) => {
-    await setDoc(doc(firestore, COLLECTIONS.SALES, sale.id), { ...sale, items });
-    for (const item of items) {
-      const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(item.productId));
-      const prodSnap = await getDoc(prodRef);
-      if (prodSnap.exists()) {
-        const currentQty = prodSnap.data().stockQuantity;
-        await updateDoc(prodRef, { stockQuantity: currentQty - item.quantity });
-      }
-    }
-  },
-
   getBudgets: async (sellerUsername?: string): Promise<Budget[]> => {
     let q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
     if (sellerUsername) {
@@ -191,31 +253,5 @@ export const db = {
     }
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => doc.data() as Budget);
-  },
-
-  getBudgetItems: async (budgetId: string): Promise<BudgetItem[]> => {
-    const budgetDoc = await getDoc(doc(firestore, COLLECTIONS.BUDGETS, budgetId));
-    if (budgetDoc.exists()) {
-      return (budgetDoc.data() as Budget).items || [];
-    }
-    return [];
-  },
-
-  createBudget: async (budget: Budget, items: BudgetItem[]) => {
-    await setDoc(doc(firestore, COLLECTIONS.BUDGETS, budget.id), { ...budget, items });
-  },
-
-  deleteBudget: async (id: string) => {
-    await deleteDoc(doc(firestore, COLLECTIONS.BUDGETS, id));
-  },
-
-  getTopSellingProducts: (products: Product[], limit: number): Product[] => {
-    return [...products].sort((a, b) => a.stockQuantity - b.stockQuantity).slice(0, limit);
-  },
-
-  getUsers: async (): Promise<User[]> => {
-    const q = query(collection(firestore, COLLECTIONS.USERS));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as User);
   }
 };
