@@ -27,15 +27,18 @@ export interface Product {
 }
 
 export interface Customer {
-  id: number;
+  id: string;
   name: string;
   phone: string;
   email?: string;
+  cpf?: string;
+  address?: string;
+  createdAt?: string;
 }
 
 export interface Sale {
   id: string;
-  customerId: number;
+  customerId: string;
   customerName: string;
   date: string;
   total: number;
@@ -57,7 +60,7 @@ export interface SaleItem {
 
 export interface Budget {
   id: string;
-  customerId: number;
+  customerId: string;
   customerName: string;
   date: string;
   total: number;
@@ -82,6 +85,7 @@ export interface CartItem extends Product {
 export enum AppTab {
   DASHBOARD = 'dashboard',
   INVENTORY = 'inventory',
+  CUSTOMERS = 'customers',
   NEW_SALE = 'new_sale',
   BUDGETS = 'budgets',
   HISTORY = 'history',

@@ -65,7 +65,7 @@ export const db = {
       const newUser: User = {
         username: sanitizedUsername,
         name: userData.name,
-        role: userData.role,
+        role: userData.role || 'vendedor',
         uid: userCredential.user.uid
       };
       await updateProfile(userCredential.user, { displayName: userData.name });
@@ -75,6 +75,11 @@ export const db = {
       console.error("Erro no registro:", error);
       return { success: false, message: error.message };
     }
+  },
+
+  updateUserRole: async (uid: string, newRole: 'admin' | 'vendedor') => {
+    const userRef = doc(firestore, COLLECTIONS.USERS, uid);
+    await updateDoc(userRef, { role: newRole });
   },
 
   logout: async () => {
@@ -105,6 +110,14 @@ export const db = {
     return onSnapshot(q, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
       callback(prods);
+    });
+  },
+
+  subscribeCustomers: (callback: (customers: Customer[]) => void) => {
+    const q = query(collection(firestore, COLLECTIONS.CUSTOMERS), orderBy('name'));
+    return onSnapshot(q, (snapshot) => {
+      const custs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
+      callback(custs);
     });
   },
 
@@ -157,6 +170,24 @@ export const db = {
   updateProductStock: async (id: string | number, quantity: number) => {
     const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(id));
     await updateDoc(prodRef, { stockQuantity: quantity });
+  },
+
+  // CUSTOMERS
+  addCustomer: async (customer: Omit<Customer, 'id'>) => {
+    const docRef = await addDoc(collection(firestore, COLLECTIONS.CUSTOMERS), {
+      ...customer,
+      createdAt: new Date().toISOString()
+    });
+    return docRef.id;
+  },
+
+  updateCustomer: async (id: string, data: Partial<Customer>) => {
+    const ref = doc(firestore, COLLECTIONS.CUSTOMERS, id);
+    await updateDoc(ref, data);
+  },
+
+  deleteCustomer: async (id: string) => {
+    await deleteDoc(doc(firestore, COLLECTIONS.CUSTOMERS, id));
   },
 
   createSale: async (sale: Sale, items: SaleItem[]) => {

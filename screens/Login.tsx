@@ -12,7 +12,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'admin' | 'vendedor'>('vendedor');
   
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -24,9 +23,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     setSuccess('');
 
-    // Sanitização para evitar erros de e-mail inválido
     const sanitizedUsername = username.trim().toLowerCase().replace(/\s+/g, '');
-    console.log(`[Login] Tentando ${isRegisterMode ? 'Registro' : 'Login'} para: ${sanitizedUsername}`);
 
     try {
       if (isRegisterMode) {
@@ -39,39 +36,30 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         const result = await db.registerUser({
           username: sanitizedUsername,
           name,
-          role,
+          role: 'vendedor', // Novo usuário sempre entra como vendedor
           password
         });
         
         if (result.success) {
-          console.log("[Login] Registro bem sucedido");
           setSuccess(result.message);
           setTimeout(() => {
             setIsRegisterMode(false);
             setSuccess('');
           }, 1500);
         } else {
-          console.error("[Login] Falha no registro:", result.message);
           setError(result.message);
         }
       } else {
         const email = `${sanitizedUsername}@venda-easy.com`;
-        console.log(`[Login] Chamando db.login com e-mail: ${email}`);
-        
         const user = await db.login(email, password);
         
         if (user) {
-          console.log("[Login] Login bem sucedido, usuário:", user.name);
           onLogin();
         } else {
-          console.warn("[Login] Usuário não retornado após login");
           setError('Erro ao carregar dados do usuário. Tente novamente.');
         }
       }
     } catch (err: any) {
-      console.error("[Login] Erro capturado no handleSubmit:", err);
-      
-      // Mapeamento de erros comuns do Firebase Auth
       if (err.code === 'auth/invalid-email') {
         setError('O nome de usuário inserido é inválido.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -99,7 +87,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
              <span className="text-4xl font-black text-indigo-600">V</span>
           </div>
           <h1 className="text-4xl font-black text-white tracking-tighter">VendaEasy</h1>
-          <p className="text-indigo-100 text-sm font-medium">Cloud Edition • Firebase Stable</p>
+          <p className="text-indigo-100 text-sm font-medium">Gestão de Vendas e Estoque</p>
         </div>
 
         <div className="bg-white/95 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl space-y-6">
@@ -113,13 +101,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     className="w-full pl-4 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                     value={name} onChange={(e) => setName(e.target.value)}
                   />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Tipo de Acesso</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setRole('vendedor')} className={`py-3 rounded-xl text-[10px] font-black uppercase border transition-all ${role === 'vendedor' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>Vendedor</button>
-                    <button type="button" onClick={() => setRole('admin')} className={`py-3 rounded-xl text-[10px] font-black uppercase border transition-all ${role === 'admin' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>Admin</button>
-                  </div>
                 </div>
               </div>
             )}

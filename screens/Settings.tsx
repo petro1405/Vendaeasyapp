@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ShopInfo, User as UserType } from '../types';
-import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download } from 'lucide-react';
+import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight } from 'lucide-react';
 
 interface SettingsProps {
   onUpdate: () => void;
@@ -18,21 +18,22 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
 
   const isAdmin = currentUser?.role === 'admin';
 
+  const loadData = async () => {
+    setLoading(true);
+    const [shopInfo, user] = await Promise.all([
+      db.getShopInfo(),
+      db.getAuthUser()
+    ]);
+    setInfo(shopInfo);
+    setCurrentUser(user);
+    if (user?.role === 'admin') {
+      const users = await db.getUsers();
+      setRegisteredUsers(users);
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const [shopInfo, user] = await Promise.all([
-        db.getShopInfo(),
-        db.getAuthUser()
-      ]);
-      setInfo(shopInfo);
-      setCurrentUser(user);
-      if (user?.role === 'admin') {
-        const users = await db.getUsers();
-        setRegisteredUsers(users);
-      }
-      setLoading(false);
-    };
     loadData();
   }, []);
 
@@ -67,6 +68,16 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
     }, 600);
   };
 
+  const toggleUserRole = async (user: UserType) => {
+    if (!isAdmin || user.uid === currentUser?.uid) return;
+    const newRole = user.role === 'admin' ? 'vendedor' : 'admin';
+    if (confirm(`Deseja alterar o cargo de ${user.name} para ${newRole.toUpperCase()}?`)) {
+      await db.updateUserRole(user.uid!, newRole);
+      const updatedUsers = await db.getUsers();
+      setRegisteredUsers(updatedUsers);
+    }
+  };
+
   if (loading || !info) {
     return (
       <div className="flex justify-center p-20">
@@ -80,7 +91,7 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h2 className="text-2xl font-black text-gray-800">Ajustes</h2>
-          <p className="text-xs text-gray-500 font-medium">Configurações do sistema e banco de dados.</p>
+          <p className="text-xs text-gray-500 font-medium">Configurações do sistema e equipe.</p>
         </div>
         <button 
           onClick={() => {
@@ -97,11 +108,50 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
           <User size={24} />
         </div>
         <div>
-          <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Usuário Atual</div>
+          <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Meu Perfil</div>
           <div className="font-black text-indigo-900">{currentUser?.name}</div>
-          <div className="text-[9px] text-indigo-600/60 font-bold uppercase tracking-tighter">Nível: {currentUser?.role}</div>
+          <div className="text-[9px] text-indigo-600/60 font-bold uppercase tracking-tighter flex items-center gap-1">
+            {currentUser?.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
+            Cargo: {currentUser?.role}
+          </div>
         </div>
       </div>
+
+      {/* Seção Gestão de Equipe - Apenas Admin */}
+      {isAdmin && (
+        <div className="space-y-4 bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <Users size={18} className="text-indigo-600" />
+            <h3 className="text-sm font-black uppercase text-gray-800 tracking-tight">Gestão de Equipe</h3>
+          </div>
+          
+          <div className="space-y-3">
+            {registeredUsers.map(user => (
+              <div key={user.uid} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${user.role === 'admin' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+                    {user.role === 'admin' ? <Shield size={14} /> : <User size={14} />}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-gray-800">{user.name}</div>
+                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">{user.role}</div>
+                  </div>
+                </div>
+                
+                {user.uid !== currentUser?.uid && (
+                  <button 
+                    onClick={() => toggleUserRole(user)}
+                    className="p-2 text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
+                    title="Alterar Cargo"
+                  >
+                    <ArrowLeftRight size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isAdmin && (
         <div className="grid grid-cols-2 gap-3">
@@ -124,7 +174,7 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
 
       {!isAdmin && (
         <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-center gap-3 text-amber-700">
-          <Lock size={20} />
+          <ShieldAlert size={20} />
           <p className="text-[10px] font-black uppercase leading-tight">Painel administrativo restrito.</p>
         </div>
       )}

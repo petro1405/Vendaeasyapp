@@ -5,17 +5,19 @@ import { db } from './db.ts';
 import { auth, onAuthStateChanged, firestore, doc, getDoc } from './firebase.ts';
 import Dashboard from './screens/Dashboard.tsx';
 import Inventory from './screens/Inventory.tsx';
+import Customers from './screens/Customers.tsx';
 import NewSale from './screens/NewSale.tsx';
 import SalesHistory from './screens/SalesHistory.tsx';
 import Budgets from './screens/Budgets.tsx';
 import Settings from './screens/Settings.tsx';
 import Login from './screens/Login.tsx';
-import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon, Cloud, Check } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, History, FileText, Settings as SettingsIcon, Cloud, Check, Users } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.DASHBOARD);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -23,25 +25,25 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let unsubProds: any;
+    let unsubCusts: any;
     let unsubSales: any;
     let unsubBudgets: any;
 
-    // REAL-TIME AUTH LISTENER
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("[Auth] Estado alterado:", firebaseUser ? "Logado" : "Deslogado");
-      
       if (firebaseUser) {
         try {
-          // Busca dados do usuário no Firestore
           const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
             setCurrentUser(userData);
             
-            // Inicia os listeners de dados
             unsubProds = db.subscribeProducts((prods) => {
               setProducts(prods);
               setIsSynced(true);
+            });
+
+            unsubCusts = db.subscribeCustomers((custs) => {
+              setCustomers(custs);
             });
 
             unsubSales = db.subscribeSales((sles) => {
@@ -52,36 +54,30 @@ const App: React.FC = () => {
               setBudgets(bdgts);
             }, userData.role === 'vendedor' ? userData.username : undefined);
           } else {
-            console.error("[Auth] Usuário logado mas documento não encontrado no Firestore");
             setCurrentUser(null);
           }
         } catch (e) {
-          console.error("[Auth] Erro ao carregar perfil:", e);
           setCurrentUser(null);
         }
       } else {
-        // Limpa tudo se deslogar
         setCurrentUser(null);
         if (unsubProds) unsubProds();
+        if (unsubCusts) unsubCusts();
         if (unsubSales) unsubSales();
         if (unsubBudgets) unsubBudgets();
         setIsSynced(false);
       }
-      
       setIsInitializing(false);
     });
 
     return () => {
       unsubscribeAuth();
       if (unsubProds) unsubProds();
+      if (unsubCusts) unsubCusts();
       if (unsubSales) unsubSales();
       if (unsubBudgets) unsubBudgets();
     };
   }, []);
-
-  const handleConvertToSale = (budget: Budget) => {
-    setActiveTab(AppTab.NEW_SALE);
-  };
 
   const handleLogout = async () => {
     await db.logout();
@@ -107,18 +103,20 @@ const App: React.FC = () => {
         return <Dashboard products={products} sales={sales} budgets={budgets} />;
       case AppTab.INVENTORY:
         return <Inventory products={products} onUpdate={() => {}} currentUser={currentUser} />;
+      case AppTab.CUSTOMERS:
+        return <Customers customers={customers} currentUser={currentUser} />;
       case AppTab.NEW_SALE:
         return (
           <NewSale 
             products={products} 
-            customers={[{id: 1, name: 'Consumidor Final', phone: '(00) 00000-0000'}]} 
+            customers={customers} 
             currentUser={currentUser}
             onComplete={() => setActiveTab(AppTab.HISTORY)} 
             onBudgetComplete={() => setActiveTab(AppTab.BUDGETS)}
           />
         );
       case AppTab.BUDGETS:
-        return <Budgets budgets={budgets} onUpdate={() => {}} onConvertToSale={handleConvertToSale} />;
+        return <Budgets budgets={budgets} onUpdate={() => {}} onConvertToSale={(b) => setActiveTab(AppTab.NEW_SALE)} />;
       case AppTab.HISTORY:
         return <SalesHistory sales={sales} />;
       case AppTab.SETTINGS:
@@ -139,7 +137,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-1 mt-0.5">
             {isSynced ? <Check size={10} className="text-green-400" /> : <Cloud size={10} className="text-indigo-300 animate-pulse" />}
             <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200">
-              {isSynced ? 'Estoque na Nuvem' : 'Sincronizando...'}
+              {isSynced ? 'Cloud Ativa' : 'Sincronizando...'}
             </span>
           </div>
         </div>
@@ -161,10 +159,10 @@ const App: React.FC = () => {
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-around items-center p-2 z-20 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-        <NavButton active={activeTab === AppTab.DASHBOARD} onClick={() => setActiveTab(AppTab.DASHBOARD)} icon={<LayoutDashboard size={18} />} label="Início" />
+        <NavButton active={activeTab === AppTab.DASHBOARD} onClick={() => setActiveTab(AppTab.DASHBOARD)} icon={<LayoutDashboard size={18} />} label="Home" />
         <NavButton active={activeTab === AppTab.INVENTORY} onClick={() => setActiveTab(AppTab.INVENTORY)} icon={<Package size={18} />} label="Estoque" />
+        <NavButton active={activeTab === AppTab.CUSTOMERS} onClick={() => setActiveTab(AppTab.CUSTOMERS)} icon={<Users size={18} />} label="Clientes" />
         <NavButton active={activeTab === AppTab.NEW_SALE} onClick={() => setActiveTab(AppTab.NEW_SALE)} icon={<ShoppingCart size={18} />} label="Vender" />
-        <NavButton active={activeTab === AppTab.BUDGETS} onClick={() => setActiveTab(AppTab.BUDGETS)} icon={<FileText size={18} />} label="Orçam." />
         <NavButton active={activeTab === AppTab.HISTORY} onClick={() => setActiveTab(AppTab.HISTORY)} icon={<History size={18} />} label="Vendas" />
       </nav>
     </div>
