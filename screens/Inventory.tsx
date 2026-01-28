@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Product, User as UserType } from '../types';
 import { db } from '../db';
 import SmartScanner from '../components/SmartScanner';
-import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles } from 'lucide-react';
+import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles, Pencil } from 'lucide-react';
 
 interface InventoryProps {
   products: Product[];
@@ -13,69 +13,103 @@ interface InventoryProps {
 
 const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  // Fix: typing editingId with Product['id']
   const [editingId, setEditingId] = useState<Product['id'] | null>(null);
   const [tempStock, setTempStock] = useState(0);
+  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+
   const isAdmin = currentUser?.role === 'admin';
 
-  // Form state for new product
-  const [newName, setNewName] = useState('');
-  const [newCategory, setNewCategory] = useState('');
-  const [newPrice, setNewPrice] = useState('');
-  const [newCostPrice, setNewCostPrice] = useState('');
-  const [newInitialStock, setNewInitialStock] = useState('');
+  // Form states
+  const [formName, setFormName] = useState('');
+  const [formCategory, setFormCategory] = useState('');
+  const [formPrice, setFormPrice] = useState('');
+  const [formCostPrice, setFormCostPrice] = useState('');
+  const [formInitialStock, setFormInitialStock] = useState('');
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const startEdit = (p: Product) => {
+  const startQuickAdjust = (p: Product) => {
     if (!isAdmin) return;
     setEditingId(p.id);
     setTempStock(p.stockQuantity);
   };
 
-  const handleSave = async (id: Product['id']) => {
-    // Fix: db.updateProductStock now correctly typed in db.ts
+  const handleQuickSave = async (id: Product['id']) => {
     await db.updateProductStock(id, tempStock);
     setEditingId(null);
     onUpdate();
   };
 
+  const openEditModal = (p: Product) => {
+    if (!isAdmin) return;
+    setProductToEdit(p);
+    setFormName(p.name);
+    setFormCategory(p.category);
+    setFormPrice(p.price.toString());
+    setFormCostPrice(p.costPrice?.toString() || '');
+    setFormInitialStock(p.stockQuantity.toString());
+    setIsEditModalOpen(true);
+  };
+
   const handleScannerDetected = (data: { name: string; category?: string }) => {
-    setNewName(data.name);
-    if (data.category) setNewCategory(data.category);
+    setFormName(data.name);
+    if (data.category) setFormCategory(data.category);
     setIsAddModalOpen(true);
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
-    if (!newName || !newPrice || !newCategory || !newInitialStock) {
+    if (!formName || !formPrice || !formCategory || !formInitialStock) {
       alert("Por favor, preencha todos os campos obrigatórios.");
       return;
     }
 
     await db.addProduct({
-      name: newName,
-      category: newCategory,
-      price: parseFloat(newPrice),
-      costPrice: newCostPrice ? parseFloat(newCostPrice) : undefined,
-      stockQuantity: parseInt(newInitialStock)
+      name: formName,
+      category: formCategory,
+      price: parseFloat(formPrice),
+      costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
+      stockQuantity: parseInt(formInitialStock)
     });
 
-    // Reset and close
-    setNewName('');
-    setNewCategory('');
-    setNewPrice('');
-    setNewCostPrice('');
-    setNewInitialStock('');
-    setIsAddModalOpen(false);
+    closeModals();
     onUpdate();
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !productToEdit) return;
+
+    await db.updateProduct(productToEdit.id, {
+      name: formName,
+      category: formCategory,
+      price: parseFloat(formPrice),
+      costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
+      stockQuantity: parseInt(formInitialStock)
+    });
+
+    closeModals();
+    onUpdate();
+  };
+
+  const closeModals = () => {
+    setFormName('');
+    setFormCategory('');
+    setFormPrice('');
+    setFormCostPrice('');
+    setFormInitialStock('');
+    setIsAddModalOpen(false);
+    setIsEditModalOpen(false);
+    setProductToEdit(null);
   };
 
   return (
@@ -114,7 +148,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         )}
       </div>
       
-      {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
         <input 
@@ -126,7 +159,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         />
       </div>
 
-      {/* Product List */}
       <div className="space-y-3 pb-8">
         {filteredProducts.map(product => (
           <div key={product.id} className={`bg-white p-5 rounded-[2rem] border transition-all ${editingId === product.id ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-gray-100 shadow-sm'}`}>
@@ -145,14 +177,17 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                   </div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right flex flex-col items-end">
                 <div className="text-indigo-600 font-black text-sm">
                   R$ {product.price.toFixed(2)}
                 </div>
-                {isAdmin && product.costPrice && (
-                  <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
-                    Custo: R$ {product.costPrice.toFixed(2)}
-                  </div>
+                {isAdmin && (
+                  <button 
+                    onClick={() => openEditModal(product)}
+                    className="mt-1 p-2 text-indigo-400 hover:text-indigo-600 bg-indigo-50 rounded-xl transition-all active:scale-90"
+                  >
+                    <Pencil size={14} />
+                  </button>
                 )}
               </div>
             </div>
@@ -181,7 +216,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     <Plus size={14} />
                   </button>
                   <button 
-                    onClick={() => handleSave(product.id)}
+                    onClick={() => handleQuickSave(product.id)}
                     className="ml-2 w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg active:scale-90 transition-all"
                   >
                     <Check size={18} />
@@ -194,7 +229,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                   </span>
                   {isAdmin && (
                     <button 
-                      onClick={() => startEdit(product)}
+                      onClick={() => startQuickAdjust(product)}
                       className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all uppercase"
                     >
                       Ajustar
@@ -214,44 +249,46 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         )}
       </div>
 
-      {/* Add Product Modal */}
-      {isAdmin && isAddModalOpen && (
+      {/* Add/Edit Product Modal */}
+      {isAdmin && (isAddModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto py-8">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 flex flex-col my-auto">
             <div className="p-6 bg-indigo-600 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 p-2 rounded-xl">
-                  <Plus size={20} />
+                  {isEditModalOpen ? <Pencil size={20} /> : <Plus size={20} />}
                 </div>
-                <h3 className="font-black text-sm uppercase tracking-widest">Novo Produto</h3>
+                <h3 className="font-black text-sm uppercase tracking-widest">{isEditModalOpen ? 'Editar Produto' : 'Novo Produto'}</h3>
               </div>
               <button 
-                onClick={() => setIsAddModalOpen(false)} 
+                onClick={closeModals} 
                 className="p-2 hover:bg-white/20 rounded-full transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleAddProduct} className="p-6 space-y-4">
+            <form onSubmit={isEditModalOpen ? handleUpdateProduct : handleAddProduct} className="p-6 space-y-4">
               <div className="space-y-1">
                 <div className="flex justify-between items-end">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome do Produto</label>
-                  <button 
-                    type="button"
-                    onClick={() => { setIsAddModalOpen(false); setIsScannerOpen(true); }}
-                    className="flex items-center gap-1 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase tracking-widest"
-                  >
-                    <Sparkles size={10} /> Scanner IA
-                  </button>
+                  {!isEditModalOpen && (
+                    <button 
+                      type="button"
+                      onClick={() => { setIsAddModalOpen(false); setIsScannerOpen(true); }}
+                      className="flex items-center gap-1 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase tracking-widest"
+                    >
+                      <Sparkles size={10} /> Scanner IA
+                    </button>
+                  )}
                 </div>
                 <input 
                   type="text"
                   required
                   placeholder="Ex: Cimento CP-III"
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
                 />
               </div>
 
@@ -260,8 +297,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                 <select 
                   required
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
                 >
                   <option value="">Selecione...</option>
                   <option value="Basicos">Básicos</option>
@@ -282,8 +319,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     step="0.01"
                     placeholder="0,00"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={newCostPrice}
-                    onChange={(e) => setNewCostPrice(e.target.value)}
+                    value={formCostPrice}
+                    onChange={(e) => setFormCostPrice(e.target.value)}
                   />
                 </div>
                 <div className="space-y-1">
@@ -294,14 +331,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     required
                     placeholder="0,00"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(e.target.value)}
+                    value={formPrice}
+                    onChange={(e) => setFormPrice(e.target.value)}
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque Inicial</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque {isEditModalOpen ? 'Atual' : 'Inicial'}</label>
                 <div className="relative">
                   <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                   <input 
@@ -309,8 +346,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     required
                     placeholder="Ex: 50"
                     className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={newInitialStock}
-                    onChange={(e) => setNewInitialStock(e.target.value)}
+                    value={formInitialStock}
+                    onChange={(e) => setFormInitialStock(e.target.value)}
                   />
                 </div>
               </div>
@@ -318,16 +355,16 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
               <div className="flex gap-2 pt-4">
                 <button 
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={closeModals}
                   className="flex-1 py-4 text-sm font-bold text-gray-400 bg-gray-100 rounded-3xl active:scale-95 transition-all uppercase tracking-widest"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-4 text-sm font-black text-white bg-indigo-600 rounded-3xl shadow-xl shadow-indigo-100 active:scale-95 transition-all uppercase tracking-widest"
+                  className={`flex-1 py-4 text-sm font-black text-white rounded-3xl shadow-xl active:scale-95 transition-all uppercase tracking-widest ${isEditModalOpen ? 'bg-amber-500 shadow-amber-100' : 'bg-indigo-600 shadow-indigo-100'}`}
                 >
-                  Cadastrar
+                  {isEditModalOpen ? 'Atualizar' : 'Cadastrar'}
                 </button>
               </div>
             </form>

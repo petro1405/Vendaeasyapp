@@ -149,6 +149,11 @@ export const db = {
     await addDoc(collection(firestore, COLLECTIONS.PRODUCTS), product);
   },
 
+  updateProduct: async (id: string | number, data: Partial<Product>) => {
+    const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(id));
+    await updateDoc(prodRef, data);
+  },
+
   updateProductStock: async (id: string | number, quantity: number) => {
     const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(id));
     await updateDoc(prodRef, { stockQuantity: quantity });
