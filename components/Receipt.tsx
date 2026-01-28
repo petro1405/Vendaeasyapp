@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ReceiptType, ShopInfo, Sale } from '../types';
-import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle, MapPin, Calendar, Phone } from 'lucide-react';
+import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle, MapPin, Calendar, Phone, DollarSign } from 'lucide-react';
 
 interface ReceiptProps {
   saleId: string;
@@ -54,27 +54,29 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
   );
 
   const sale = entity as Sale;
-  const expired = isBudget && (entity as any).validUntil && new Date((entity as any).validUntil) < new Date();
 
   const handleShareWhatsApp = () => {
-    const title = isBudget ? 'ORÇAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'COMPROVANTE');
+    const title = isBudget ? 'ORÇAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : (printType === 'payment' ? 'TICKET DE CAIXA' : 'COMPROVANTE'));
     let text = `*${title} - ${shopInfo.name}*\n\n`;
     text += `Cliente: ${entity.customerName}\n`;
-    text += `Data: ${new Date(entity.date).toLocaleDateString('pt-BR')}\n`;
     
-    if (!isBudget && sale.isDelivery && printType === 'delivery') {
-      text += `\n*DADOS DE ENTREGA:*\n`;
-      text += `Data Agendada: ${new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}\n`;
-      text += `Endereço: ${sale.deliveryAddress}\n`;
-      text += `Contato: ${sale.deliveryPhone}\n`;
+    if (printType === 'payment') {
+      text += `Pagamento: *${sale.paymentMethod?.toUpperCase()}*\n`;
+      text += `VALOR TOTAL: *R$ ${entity.total.toFixed(2)}*\n`;
+    } else {
+      text += `Data: ${new Date(entity.date).toLocaleDateString('pt-BR')}\n`;
+      if (!isBudget && sale.isDelivery && printType === 'delivery') {
+        text += `\n*DADOS DE ENTREGA:*\n`;
+        text += `Endereço: ${sale.deliveryAddress}\n`;
+        text += `Contato: ${sale.deliveryPhone}\n`;
+      }
+      text += `\n--------------------------\n`;
+      items.forEach(item => {
+        text += `- ${item.productName} (${item.quantity}x)\n`;
+      });
+      text += `--------------------------\n`;
+      text += `*TOTAL: R$ ${entity.total.toFixed(2)}*\n`;
     }
-    
-    text += `\n--------------------------\n`;
-    items.forEach(item => {
-      text += `- ${item.productName}\n  ${item.quantity}x R$ ${item.unitPrice.toFixed(2)} = R$ ${(item.quantity * item.unitPrice).toFixed(2)}\n`;
-    });
-    text += `--------------------------\n`;
-    text += `*TOTAL: R$ ${entity.total.toFixed(2)}*\n`;
     
     const encodedText = encodeURIComponent(text);
     window.open(`https://wa.me/?text=${encodedText}`, '_blank');
@@ -85,6 +87,62 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     setTimeout(() => { window.print(); }, 150);
   };
 
+  // RENDERIZAÇÃO DO TICKET DE CAIXA (MUITO SIMPLIFICADO)
+  if (printType === 'payment' && !isBudget) {
+    return (
+      <div className="w-full space-y-4">
+        <div id="printable-area" className="bg-white p-6 text-black font-mono leading-tight receipt-font mx-auto max-w-[320px] border-2 border-black">
+          <div className="text-center border-b-2 border-black pb-2 mb-4">
+            <div className="font-black text-sm uppercase tracking-tighter">TICKET DE CAIXA</div>
+            <div className="text-[10px] uppercase font-bold">{shopInfo.name}</div>
+          </div>
+
+          <div className="space-y-4 py-2">
+            <div className="flex flex-col items-center gap-1 border-b border-dashed border-gray-300 pb-4">
+              <span className="text-[10px] font-bold uppercase text-gray-500">CLIENTE</span>
+              <span className="text-sm font-black uppercase text-center">{entity.customerName}</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-bold uppercase text-gray-500">FORMA DE PAGAMENTO</span>
+              <div className="bg-black text-white px-4 py-1 rounded-md font-black text-base uppercase">
+                {sale.paymentMethod || 'A DEFINIR'}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-1 py-4 border-y-2 border-black bg-gray-50">
+              <span className="text-[10px] font-black uppercase text-black">VALOR TOTAL A PAGAR</span>
+              <span className="text-4xl font-black text-black">R$ {entity.total.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between text-[10px] pt-2 font-bold opacity-60">
+              <span>CONTROLE: #{entity.id.split('-').pop()}</span>
+              <span>{new Date(entity.date).toLocaleTimeString('pt-BR')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 no-print">
+          <button onClick={handleShareWhatsApp} className="w-full bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-sm">
+            <Send size={18} /> WhatsApp
+          </button>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => setPrintType('fiscal')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white text-gray-400">
+              <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
+            </button>
+            <button onClick={() => setPrintType('delivery')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white text-gray-400">
+              <Truck size={20} /> <span className="text-[9px]">Entrega</span>
+            </button>
+            <button onClick={() => handlePrint('payment')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-indigo-600 text-white shadow-md">
+              <DollarSign size={20} /> <span className="text-[9px]">Caixa</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDERIZAÇÃO PADRÃO (FISCAL OU ENTREGA)
   return (
     <div className="w-full space-y-4">
       <div 
@@ -97,7 +155,6 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           <div className="text-[9px]">CNPJ: {shopInfo.cnpj}</div>
         </div>
 
-        {/* QUADRO DE ENTREGA - O PONTO PRINCIPAL DO PEDIDO */}
         {!isBudget && sale.isDelivery && printType === 'delivery' && (
           <div className="mb-4 p-3 border-4 border-black space-y-2">
             <div className="font-black text-center border-b-2 border-black pb-1 mb-1 text-sm">ORDEM DE ENTREGA</div>
@@ -166,17 +223,17 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           onClick={handleShareWhatsApp}
           className="w-full bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-sm"
         >
-          <Send size={18} /> Enviar WhatsApp
+          <Send size={18} /> WhatsApp
         </button>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => handlePrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
+          <button onClick={() => setPrintType('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
             <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
           </button>
-          <button onClick={() => handlePrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
+          <button onClick={() => setPrintType('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
             <Truck size={20} /> <span className="text-[9px]">Entrega</span>
           </button>
-          <button onClick={() => handlePrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-100'}`}>
-            <CreditCard size={20} /> <span className="text-[9px]">Recibo</span>
+          <button onClick={() => setPrintType('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-amber-700 border-amber-100'}`}>
+            <DollarSign size={20} /> <span className="text-[9px]">Caixa</span>
           </button>
         </div>
       </div>
