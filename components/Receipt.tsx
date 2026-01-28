@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ReceiptType, ShopInfo, Sale } from '../types';
-import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle } from 'lucide-react';
+import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle, MapPin, Calendar, Phone } from 'lucide-react';
 
 interface ReceiptProps {
   saleId: string;
@@ -57,7 +57,7 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
   const sale = entity as Sale;
 
   const handleShareWhatsApp = () => {
-    const title = isBudget ? 'ORCAMENTO' : 'COMPROVANTE DE COMPRA';
+    const title = isBudget ? 'ORCAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : 'COMPROVANTE DE COMPRA');
     let text = `*${title} - ${shopInfo.name}*\n\n`;
     text += `Cliente: ${entity.customerName}\n`;
     text += `Data: ${new Date(entity.date).toLocaleDateString('pt-BR')}\n`;
@@ -65,6 +65,13 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     if (isBudget && (entity as any).validUntil) {
       text += `Validade: ${new Date((entity as any).validUntil).toLocaleDateString('pt-BR')}\n`;
       if (expired) text += `AVISO: ESTE ORCAMENTO ESTA EXPIRADO\n`;
+    }
+
+    if (!isBudget && sale.isDelivery && printType === 'delivery') {
+      text += `\n*DADOS DE ENTREGA:*\n`;
+      text += `Data Agendada: ${new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}\n`;
+      text += `Endereço: ${sale.deliveryAddress}\n`;
+      text += `Contato: ${sale.deliveryPhone}\n`;
     }
     
     text += `\n--------------------------\n`;
@@ -123,6 +130,25 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           <div className="text-[10px] uppercase">{shopInfo.address}</div>
           <div className="text-[10px]">CNPJ: {shopInfo.cnpj} | Tel: {shopInfo.phone}</div>
         </div>
+
+        {/* DADOS DE ENTREGA EM DESTAQUE NO TOPO (MODO ENTREGA) */}
+        {!isBudget && sale.isDelivery && printType === 'delivery' && (
+          <div className="mb-4 p-2 border-2 border-black space-y-1">
+            <div className="font-black text-center border-b border-black mb-1">DADOS PARA ENTREGA</div>
+            <div className="flex items-start gap-1">
+              <Calendar size={10} className="shrink-0 mt-0.5" />
+              <span className="font-bold">DATA: {new Date(sale.deliveryDate!).toLocaleDateString('pt-BR')}</span>
+            </div>
+            <div className="flex items-start gap-1">
+              <MapPin size={10} className="shrink-0 mt-0.5" />
+              <span className="font-bold">ENDEREÇO: {sale.deliveryAddress}</span>
+            </div>
+            <div className="flex items-start gap-1">
+              <Phone size={10} className="shrink-0 mt-0.5" />
+              <span className="font-bold">CONTATO: {sale.deliveryPhone}</span>
+            </div>
+          </div>
+        )}
 
         <div className="mb-2 space-y-0.5 border-b border-dashed border-gray-400 pb-2">
           <div className="flex justify-between font-bold">
@@ -194,13 +220,13 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           <Send size={18} /> WhatsApp
         </button>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => handlePrint('fiscal')} className="p-3 bg-white text-indigo-600 border border-indigo-100 rounded-xl font-bold flex flex-col items-center gap-1 shadow-md">
+          <button onClick={() => handlePrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
             <ReceiptIcon size={20} /> <span className="text-[9px]">Cupom</span>
           </button>
-          <button onClick={() => handlePrint('delivery')} className="p-3 bg-white text-slate-800 border border-slate-100 rounded-xl font-bold flex flex-col items-center gap-1 shadow-md">
+          <button onClick={() => handlePrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
             <Truck size={20} /> <span className="text-[9px]">Entrega</span>
           </button>
-          <button onClick={() => handlePrint('payment')} className="p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-bold flex flex-col items-center gap-1 shadow-md">
+          <button onClick={() => handlePrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-amber-500 text-white border-amber-600' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
             <CreditCard size={20} /> <span className="text-[9px]">Pagam.</span>
           </button>
         </div>

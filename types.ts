@@ -47,6 +47,11 @@ export interface Sale {
   paymentMethod?: string;
   sellerUsername: string;
   items?: SaleItem[];
+  // Entrega
+  isDelivery?: boolean;
+  deliveryDate?: string;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
 }
 
 export interface SaleItem {

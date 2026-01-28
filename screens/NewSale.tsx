@@ -13,15 +13,13 @@ import {
   CheckCircle2,
   ChevronLeft,
   FileText,
-  CalendarClock,
-  ChevronDown,
-  ChevronUp,
-  Flame,
   Camera,
-  Percent,
   CreditCard,
   QrCode,
-  Users
+  Truck,
+  MapPin,
+  Phone,
+  Calendar
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -49,14 +47,17 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const [customerSearch, setCustomerSearch] = useState('');
   const [lastId, setLastId] = useState<string | null>(null);
   const [isBudgetMode, setIsBudgetMode] = useState(false);
-  const [budgetValidityDays, setBudgetValidityDays] = useState(7);
-  const [showFeatured, setShowFeatured] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   
+  // Sale Options
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao'>('pix');
-
-  const featuredProducts = useMemo(() => db.getTopSellingProducts(products, 3), [products]);
+  
+  // Delivery Options
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
 
   useEffect(() => {
     if (conversionData && products.length > 0 && customers.length > 0) {
@@ -85,6 +86,18 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       }
     }
   }, [conversionData, products, customers]);
+
+  // Set default delivery info when customer is selected
+  useEffect(() => {
+    if (selectedCustomer) {
+      setDeliveryAddress(selectedCustomer.address || '');
+      setDeliveryPhone(selectedCustomer.phone || '');
+      // Default delivery date to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setDeliveryDate(tomorrow.toISOString().split('T')[0]);
+    }
+  }, [selectedCustomer]);
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
@@ -164,7 +177,11 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
       discount: discountAmount,
       total: finalTotal,
       paymentMethod: paymentMethod,
-      sellerUsername: currentUser.username
+      sellerUsername: currentUser.username,
+      isDelivery: isDelivery,
+      deliveryDate: isDelivery ? deliveryDate : undefined,
+      deliveryAddress: isDelivery ? deliveryAddress : undefined,
+      deliveryPhone: isDelivery ? deliveryPhone : undefined
     };
 
     const saleItems: SaleItem[] = cart.map(item => ({
@@ -187,7 +204,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
 
     const budgetId = `BUDGET-${Date.now()}`;
     const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + budgetValidityDays);
+    validUntil.setDate(validUntil.getDate() + 7);
 
     const newBudget: Budget = {
       id: budgetId,
@@ -270,7 +287,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
             <div className="pt-2">
               <button 
                 onClick={() => {
-                  // Fallback para consumidor final rápido se não houver cadastro
                   const fastCustomer = { id: '0', name: 'Consumidor Final', phone: '(00) 00000-0000' } as Customer;
                   setSelectedCustomer(fastCustomer);
                   setStep(SaleStep.ADD_PRODUCTS);
@@ -364,30 +380,76 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
             </button>
             
             <div className="bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm space-y-6">
+              {/* Cliente Info */}
               <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
                 <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600"><User size={20} /></div>
                 <div>
                   <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Cliente</div>
                   <div className="font-black text-gray-800">{selectedCustomer?.name}</div>
-                  {selectedCustomer?.cpf && <div className="text-[8px] text-gray-400 font-bold">CPF: {selectedCustomer.cpf}</div>}
                 </div>
               </div>
 
+              {/* Entrega Options */}
               <div className="space-y-4">
-                {cart.map(item => (
-                  <div key={item.id} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-800 text-sm truncate">{item.name}</div>
-                      <div className="text-[10px] text-gray-400 font-bold uppercase">{item.cartQuantity}x R$ {item.price.toFixed(2)}</div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsDelivery(false)}
+                    className={`flex-1 py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${!isDelivery ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                  >
+                    <CheckCircle2 size={18} /> <span className="text-[10px] font-black uppercase">Retirada</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsDelivery(true)}
+                    className={`flex-1 py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${isDelivery ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                  >
+                    <Truck size={18} /> <span className="text-[10px] font-black uppercase">Entrega</span>
+                  </button>
+                </div>
+
+                {isDelivery && (
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-3xl border border-gray-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
+                        <Calendar size={10} /> Data Programada
+                      </label>
+                      <input 
+                        type="date"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-800 outline-none"
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
+                      />
                     </div>
-                    <div className="text-right ml-4">
-                      <div className="font-black text-indigo-600 text-sm">R$ {(item.price * item.cartQuantity).toFixed(2)}</div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
+                        <MapPin size={10} /> Endereço de Entrega
+                      </label>
+                      <input 
+                        type="text"
+                        placeholder="Endereço completo"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium outline-none"
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
+                        <Phone size={10} /> Contato de Entrega
+                      </label>
+                      <input 
+                        type="tel"
+                        placeholder="Telefone para contato"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium outline-none"
+                        value={deliveryPhone}
+                        onChange={(e) => setDeliveryPhone(e.target.value)}
+                      />
                     </div>
                   </div>
-                ))}
+                )}
               </div>
 
-              <div className="pt-6 border-t border-gray-100 space-y-4">
+              {/* Pagamento Options */}
+              <div className="pt-2 space-y-4">
+                <div className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Forma de Pagamento</div>
                 <div className="grid grid-cols-3 gap-2">
                   <button onClick={() => setPaymentMethod('pix')} className={`py-3 rounded-2xl flex flex-col items-center gap-1 border transition-all ${paymentMethod === 'pix' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
                     <QrCode size={18} /> <span className="text-[9px] font-black uppercase">PIX</span>
@@ -413,6 +475,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 </div>
               </div>
 
+              {/* Totais */}
               <div className="pt-4 border-t-2 border-dashed border-gray-100 space-y-2">
                 <div className="flex justify-between items-center text-gray-400">
                   <span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span>
