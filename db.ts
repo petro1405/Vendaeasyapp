@@ -97,7 +97,6 @@ export const db = {
   requestPasswordReset: async (username: string): Promise<{ success: boolean, message: string }> => {
     try {
       const sanitizedUsername = username.trim().toLowerCase();
-      // Verifica se usuário existe
       const q = query(collection(firestore, COLLECTIONS.USERS), where('username', '==', sanitizedUsername));
       const snap = await getDocs(q);
       
@@ -119,15 +118,15 @@ export const db = {
   },
 
   getResetRequests: async (): Promise<PasswordResetRequest[]> => {
-    const q = query(collection(firestore, COLLECTIONS.RESET_REQUESTS), where('status', '==', 'pending'), orderBy('date', 'desc'));
+    // Para evitar erro de índice composto, buscamos por data e filtramos o status em memória
+    const q = query(collection(firestore, COLLECTIONS.RESET_REQUESTS), orderBy('date', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PasswordResetRequest));
+    return snap.docs
+      .map(doc => ({ ...doc.data(), id: doc.id } as PasswordResetRequest))
+      .filter(req => req.status === 'pending');
   },
 
   resolvePasswordReset: async (requestId: string, uid: string) => {
-    // Para resolver um reset sem Admin SDK, o admin exclui o documento do usuário
-    // permitindo que o vendedor se registre novamente com o mesmo username e uma nova senha.
-    // Isso preserva o histórico de vendas porque ele é linkado pelo 'username' (string).
     await deleteDoc(doc(firestore, COLLECTIONS.USERS, uid));
     await updateDoc(doc(firestore, COLLECTIONS.RESET_REQUESTS, requestId), { status: 'resolved' });
   },
@@ -182,23 +181,25 @@ export const db = {
   },
 
   subscribeSales: (callback: (sales: Sale[]) => void, sellerUsername?: string) => {
-    let q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
-    if (sellerUsername) {
-      q = query(collection(firestore, COLLECTIONS.SALES), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
-    }
+    // Buscamos ordenado por data e filtramos em memória para evitar a necessidade de índice composto manual
+    const q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const sales = snapshot.docs.map(doc => doc.data() as Sale);
+      let sales = snapshot.docs.map(doc => doc.data() as Sale);
+      if (sellerUsername) {
+        sales = sales.filter(s => s.sellerUsername === sellerUsername);
+      }
       callback(sales);
     });
   },
 
   subscribeBudgets: (callback: (budgets: Budget[]) => void, sellerUsername?: string) => {
-    let q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
-    if (sellerUsername) {
-      q = query(collection(firestore, COLLECTIONS.BUDGETS), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
-    }
+    // Seguindo o mesmo padrão para evitar erro de índice
+    const q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const budgets = snapshot.docs.map(doc => doc.data() as Budget);
+      let budgets = snapshot.docs.map(doc => doc.data() as Budget);
+      if (sellerUsername) {
+        budgets = budgets.filter(b => b.sellerUsername === sellerUsername);
+      }
       callback(budgets);
     });
   },
@@ -334,20 +335,22 @@ export const db = {
   },
 
   getSales: async (sellerUsername?: string): Promise<Sale[]> => {
-    let q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
-    if (sellerUsername) {
-      q = query(collection(firestore, COLLECTIONS.SALES), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
-    }
+    const q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Sale);
+    let sales = snapshot.docs.map(doc => doc.data() as Sale);
+    if (sellerUsername) {
+      sales = sales.filter(s => s.sellerUsername === sellerUsername);
+    }
+    return sales;
   },
 
   getBudgets: async (sellerUsername?: string): Promise<Budget[]> => {
-    let q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
-    if (sellerUsername) {
-      q = query(collection(firestore, COLLECTIONS.BUDGETS), where('sellerUsername', '==', sellerUsername), orderBy('date', 'desc'));
-    }
+    const q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Budget);
+    let budgets = snapshot.docs.map(doc => doc.data() as Budget);
+    if (sellerUsername) {
+      budgets = budgets.filter(b => b.sellerUsername === sellerUsername);
+    }
+    return budgets;
   }
 };
