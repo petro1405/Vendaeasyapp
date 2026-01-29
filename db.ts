@@ -82,6 +82,11 @@ export const db = {
     await updateDoc(userRef, { role: newRole });
   },
 
+  deleteUser: async (uid: string) => {
+    const userRef = doc(firestore, COLLECTIONS.USERS, uid);
+    await deleteDoc(userRef);
+  },
+
   logout: async () => {
     await signOut(auth);
   },

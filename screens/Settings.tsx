@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ShopInfo, User as UserType } from '../types';
-import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight } from 'lucide-react';
+import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight, Trash2 } from 'lucide-react';
 
 interface SettingsProps {
   onUpdate: () => void;
@@ -78,6 +78,15 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
     }
   };
 
+  const handleDeleteUser = async (user: UserType) => {
+    if (!isAdmin || user.uid === currentUser?.uid) return;
+    if (confirm(`ATENÇÃO: Deseja realmente EXCLUIR o usuário ${user.name}? Ele perderá acesso ao sistema imediatamente.`)) {
+      await db.deleteUser(user.uid!);
+      const updatedUsers = await db.getUsers();
+      setRegisteredUsers(updatedUsers);
+    }
+  };
+
   if (loading || !info) {
     return (
       <div className="flex justify-center p-20">
@@ -139,13 +148,22 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
                 </div>
                 
                 {user.uid !== currentUser?.uid && (
-                  <button 
-                    onClick={() => toggleUserRole(user)}
-                    className="p-2 text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
-                    title="Alterar Cargo"
-                  >
-                    <ArrowLeftRight size={16} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => toggleUserRole(user)}
+                      className="p-2 text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
+                      title="Alterar Cargo"
+                    >
+                      <ArrowLeftRight size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteUser(user)}
+                      className="p-2 text-red-500 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
+                      title="Excluir Usuário"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
