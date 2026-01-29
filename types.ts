@@ -6,6 +6,14 @@ export interface User {
   uid?: string;
 }
 
+export interface PasswordResetRequest {
+  id: string;
+  username: string;
+  name: string;
+  date: string;
+  status: 'pending' | 'resolved';
+}
+
 export interface ShopInfo {
   id: number;
   name: string;

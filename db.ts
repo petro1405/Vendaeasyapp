@@ -20,7 +20,8 @@ import {
   deleteDoc,
   onSnapshot
 } from "./firebase";
-import { Product, Customer, Sale, SaleItem, ShopInfo, Budget, BudgetItem, User } from './types';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { Product, Customer, Sale, SaleItem, ShopInfo, Budget, BudgetItem, User, PasswordResetRequest } from './types';
 
 const COLLECTIONS = {
   PRODUCTS: 'products',
@@ -28,7 +29,8 @@ const COLLECTIONS = {
   SALES: 'sales',
   BUDGETS: 'budgets',
   SHOP_INFO: 'shop_info',
-  USERS: 'users'
+  USERS: 'users',
+  RESET_REQUESTS: 'password_resets'
 };
 
 const DEFAULT_SHOP_INFO: ShopInfo = {
@@ -75,6 +77,59 @@ export const db = {
       console.error("Erro no registro:", error);
       return { success: false, message: error.message };
     }
+  },
+
+  changePassword: async (currentPass: string, newPass: string): Promise<{ success: boolean, message: string }> => {
+    const user = auth.currentUser;
+    if (!user || !user.email) return { success: false, message: "Usuário não autenticado" };
+    
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPass);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPass);
+      return { success: true, message: "Senha alterada com sucesso!" };
+    } catch (error: any) {
+      console.error("Erro ao mudar senha:", error);
+      return { success: false, message: "Senha atual incorreta ou erro de rede." };
+    }
+  },
+
+  requestPasswordReset: async (username: string): Promise<{ success: boolean, message: string }> => {
+    try {
+      const sanitizedUsername = username.trim().toLowerCase();
+      // Verifica se usuário existe
+      const q = query(collection(firestore, COLLECTIONS.USERS), where('username', '==', sanitizedUsername));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) return { success: false, message: "Usuário não encontrado." };
+      
+      const userData = snap.docs[0].data() as User;
+      
+      await addDoc(collection(firestore, COLLECTIONS.RESET_REQUESTS), {
+        username: sanitizedUsername,
+        name: userData.name,
+        date: new Date().toISOString(),
+        status: 'pending'
+      });
+      
+      return { success: true, message: "Solicitação enviada ao administrador." };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  },
+
+  getResetRequests: async (): Promise<PasswordResetRequest[]> => {
+    const q = query(collection(firestore, COLLECTIONS.RESET_REQUESTS), where('status', '==', 'pending'), orderBy('date', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PasswordResetRequest));
+  },
+
+  resolvePasswordReset: async (requestId: string, uid: string) => {
+    // Para resolver um reset sem Admin SDK, o admin exclui o documento do usuário
+    // permitindo que o vendedor se registre novamente com o mesmo username e uma nova senha.
+    // Isso preserva o histórico de vendas porque ele é linkado pelo 'username' (string).
+    await deleteDoc(doc(firestore, COLLECTIONS.USERS, uid));
+    await updateDoc(doc(firestore, COLLECTIONS.RESET_REQUESTS, requestId), { status: 'resolved' });
   },
 
   updateUserRole: async (uid: string, newRole: 'admin' | 'vendedor') => {

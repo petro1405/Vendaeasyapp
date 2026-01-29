@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
-import { ShopInfo, User as UserType } from '../types';
-import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight, Trash2 } from 'lucide-react';
+import { ShopInfo, User as UserType, PasswordResetRequest } from '../types';
+// Fixed missing ShieldQuestion import from lucide-react
+import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight, Trash2, KeyRound, CheckCircle2, AlertCircle, ShieldQuestion } from 'lucide-react';
 
 interface SettingsProps {
   onUpdate: () => void;
@@ -13,8 +14,15 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
   const [info, setInfo] = useState<ShopInfo | null>(null);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [registeredUsers, setRegisteredUsers] = useState<UserType[]>([]);
+  const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [loading, setLoading] = useState(true);
+
+  // Password Change States
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [passStatus, setPassStatus] = useState<{ type: 'success' | 'error' | 'idle', msg: string }>({ type: 'idle', msg: '' });
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -29,6 +37,8 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
     if (user?.role === 'admin') {
       const users = await db.getUsers();
       setRegisteredUsers(users);
+      const requests = await db.getResetRequests();
+      setResetRequests(requests);
     }
     setLoading(false);
   };
@@ -68,6 +78,32 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
     }, 600);
   };
 
+  const handlePassChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassStatus({ type: 'idle', msg: '' });
+
+    if (newPass !== confirmPass) {
+      setPassStatus({ type: 'error', msg: 'As senhas não coincidem.' });
+      return;
+    }
+
+    if (newPass.length < 6) {
+      setPassStatus({ type: 'error', msg: 'A senha deve ter pelo menos 6 dígitos.' });
+      return;
+    }
+
+    const result = await db.changePassword(currentPass, newPass);
+    if (result.success) {
+      setPassStatus({ type: 'success', msg: result.message });
+      setCurrentPass('');
+      setNewPass('');
+      setConfirmPass('');
+      setTimeout(() => setPassStatus({ type: 'idle', msg: '' }), 3000);
+    } else {
+      setPassStatus({ type: 'error', msg: result.message });
+    }
+  };
+
   const toggleUserRole = async (user: UserType) => {
     if (!isAdmin || user.uid === currentUser?.uid) return;
     const newRole = user.role === 'admin' ? 'vendedor' : 'admin';
@@ -84,6 +120,21 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
       await db.deleteUser(user.uid!);
       const updatedUsers = await db.getUsers();
       setRegisteredUsers(updatedUsers);
+    }
+  };
+
+  const handleResolveReset = async (req: PasswordResetRequest) => {
+    if (!isAdmin) return;
+    // Buscamos o UID do usuário pelo username
+    const targetUser = registeredUsers.find(u => u.username === req.username);
+    if (!targetUser) {
+      alert("Usuário não encontrado na lista atual.");
+      return;
+    }
+
+    if (confirm(`Autorizar reset de senha para ${req.name}? Isso permitirá que ele se registre novamente com o mesmo nome e uma nova senha.`)) {
+      await db.resolvePasswordReset(req.id, targetUser.uid!);
+      loadData();
     }
   };
 
@@ -125,6 +176,77 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Seção Alterar Minha Senha */}
+      <div className="space-y-4 bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <KeyRound size={18} className="text-indigo-600" />
+          <h3 className="text-sm font-black uppercase text-gray-800 tracking-tight">Minha Segurança</h3>
+        </div>
+        <form onSubmit={handlePassChange} className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Senha Atual</label>
+            <input 
+              type="password" required
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              value={currentPass} onChange={(e) => setCurrentPass(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Nova Senha</label>
+              <input 
+                type="password" required
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                value={newPass} onChange={(e) => setNewPass(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Confirmar</label>
+              <input 
+                type="password" required
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)}
+              />
+            </div>
+          </div>
+          {passStatus.type !== 'idle' && (
+            <div className={`p-2 rounded-xl text-[10px] font-bold flex items-center gap-2 ${passStatus.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+              {passStatus.type === 'success' ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+              {passStatus.msg}
+            </div>
+          )}
+          <button type="submit" className="w-full py-3 bg-gray-900 text-white rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">
+            Atualizar Senha
+          </button>
+        </form>
+      </div>
+
+      {/* Seção Gestão de Senhas - Apenas Admin */}
+      {isAdmin && resetRequests.length > 0 && (
+        <div className="space-y-4 bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 shadow-sm animate-pulse">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldQuestion size={18} className="text-amber-600" />
+            <h3 className="text-sm font-black uppercase text-amber-800 tracking-tight">Solicitações de Senha</h3>
+          </div>
+          <div className="space-y-2">
+            {resetRequests.map(req => (
+              <div key={req.id} className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-amber-200">
+                <div>
+                  <div className="text-xs font-bold text-gray-800">{req.name}</div>
+                  <div className="text-[9px] font-black text-amber-600 uppercase tracking-tighter">@{req.username}</div>
+                </div>
+                <button 
+                  onClick={() => handleResolveReset(req)}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black uppercase text-[9px] tracking-widest shadow-lg shadow-amber-200 active:scale-95"
+                >
+                  Autorizar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Seção Gestão de Equipe - Apenas Admin */}
       {isAdmin && (

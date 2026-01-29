@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { db } from '../db';
-import { User as UserIcon, Lock, LogIn, AlertCircle, UserPlus, CheckCircle2 } from 'lucide-react';
+import { User as UserIcon, Lock, LogIn, AlertCircle, UserPlus, CheckCircle2, ShieldQuestion, X } from 'lucide-react';
 
 interface LoginProps {
   onLogin: () => void;
@@ -9,6 +9,7 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -26,7 +27,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     const sanitizedUsername = username.trim().toLowerCase().replace(/\s+/g, '');
 
     try {
-      if (isRegisterMode) {
+      if (isResetMode) {
+        const result = await db.requestPasswordReset(sanitizedUsername);
+        if (result.success) {
+          setSuccess(result.message);
+          setTimeout(() => {
+            setIsResetMode(false);
+            setSuccess('');
+          }, 3000);
+        } else {
+          setError(result.message);
+        }
+      } else if (isRegisterMode) {
         if (!name.trim()) {
           setError('O nome completo é obrigatório para registro.');
           setIsLoading(false);
@@ -36,7 +48,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         const result = await db.registerUser({
           username: sanitizedUsername,
           name,
-          role: 'vendedor', // Novo usuário sempre entra como vendedor
+          role: 'vendedor',
           password
         });
         
@@ -91,8 +103,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         <div className="bg-white/95 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl space-y-6">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-sm font-black uppercase text-indigo-600 tracking-widest">
+              {isResetMode ? 'Recuperar Senha' : isRegisterMode ? 'Criar Conta' : 'Acessar Painel'}
+            </h2>
+            {isResetMode && (
+              <button onClick={() => setIsResetMode(false)} className="p-1 text-gray-400 hover:text-red-500">
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegisterMode && (
+            {isRegisterMode && !isResetMode && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome Completo</label>
@@ -117,17 +140,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Senha</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <input 
-                  type="password" required placeholder="Sua senha"
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                />
+            {!isResetMode && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                  <input 
+                    type="password" required placeholder="Sua senha"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    value={password} onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <div className="text-red-500 bg-red-50 p-3 rounded-xl text-xs font-bold flex items-start gap-2 animate-in slide-in-from-top-1">
@@ -150,7 +175,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                isRegisterMode ? (
+                isResetMode ? (
+                  <>Solicitar Reset <ShieldQuestion size={18} /></>
+                ) : isRegisterMode ? (
                   <>Cadastrar <UserPlus size={18} /></>
                 ) : (
                   <>Entrar <LogIn size={18} /></>
@@ -159,13 +186,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          <button 
-            type="button"
-            onClick={() => { setIsRegisterMode(!isRegisterMode); setError(''); setSuccess(''); }} 
-            className="w-full text-indigo-600 font-black text-[10px] uppercase tracking-widest py-2 hover:opacity-70 transition-opacity"
-          >
-            {isRegisterMode ? 'Já tenho uma conta' : 'Criar nova conta'}
-          </button>
+          {!isResetMode && (
+            <div className="space-y-2">
+              <button 
+                type="button"
+                onClick={() => { setIsRegisterMode(!isRegisterMode); setError(''); setSuccess(''); }} 
+                className="w-full text-indigo-600 font-black text-[10px] uppercase tracking-widest py-1 hover:opacity-70 transition-opacity"
+              >
+                {isRegisterMode ? 'Já tenho uma conta' : 'Criar nova conta'}
+              </button>
+              {!isRegisterMode && (
+                <button 
+                  type="button"
+                  onClick={() => { setIsResetMode(true); setError(''); setSuccess(''); }}
+                  className="w-full text-gray-400 font-bold text-[9px] uppercase tracking-widest py-1 hover:text-indigo-600 transition-colors"
+                >
+                  Esqueci minha senha
+                </button>
+              )}
+            </div>
+          )}
+          
+          {isResetMode && (
+            <div className="bg-amber-50 p-3 rounded-2xl border border-amber-100">
+              <p className="text-[9px] text-amber-700 font-bold leading-tight uppercase">
+                A solicitação será enviada a um administrador. Após autorização, você poderá criar uma nova senha.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
