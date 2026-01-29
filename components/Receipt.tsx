@@ -2,15 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ReceiptType, ShopInfo, Sale } from '../types';
-import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, AlertTriangle, MapPin, Calendar, Phone, DollarSign } from 'lucide-react';
+import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, MapPin, Calendar, Phone, DollarSign } from 'lucide-react';
 
 interface ReceiptProps {
   saleId: string;
   isBudget?: boolean;
   initialType?: ReceiptType;
+  autoPrint?: boolean;
 }
 
-const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType = 'fiscal' }) => {
+const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType = 'fiscal', autoPrint = true }) => {
   const [printType, setPrintType] = useState<ReceiptType>(initialType);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [entity, setEntity] = useState<any>(null);
@@ -47,6 +48,17 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     loadData();
   }, [saleId, isBudget]);
 
+  // DISPARO AUTOMÁTICO DE IMPRESSÃO REFORÇADO
+  // Agora ele observa tanto o carregamento quanto a mudança de TIPO de impressão
+  useEffect(() => {
+    if (!loading && entity && autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 300); // Delay reduzido para maior agilidade
+      return () => clearTimeout(timer);
+    }
+  }, [loading, entity, printType, autoPrint, saleId]);
+
   if (loading || !entity || !shopInfo) return (
     <div className="flex justify-center p-8">
       <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
@@ -82,23 +94,23 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     window.open(`https://wa.me/?text=${encodedText}`, '_blank');
   };
 
-  const handlePrint = (type: ReceiptType) => {
+  const triggerPrint = (type: ReceiptType) => {
     setPrintType(type);
-    setTimeout(() => { window.print(); }, 150);
+    // O useEffect cuidará do disparo automático ao notar a mudança de printType
   };
 
-  // RENDERIZAÇÃO DO TICKET DE CAIXA (MUITO SIMPLIFICADO)
+  // RENDERIZAÇÃO DO TICKET DE CAIXA (MUITO SIMPLIFICADO E TÉRMICO)
   if (printType === 'payment' && !isBudget) {
     return (
       <div className="w-full space-y-4">
-        <div id="printable-area" className="bg-white p-6 text-black font-mono leading-tight receipt-font mx-auto max-w-[320px] border-2 border-black">
+        <div id="printable-area" className="bg-white p-4 text-black font-mono leading-tight receipt-font mx-auto max-w-[300px] border-2 border-black">
           <div className="text-center border-b-2 border-black pb-2 mb-4">
             <div className="font-black text-sm uppercase tracking-tighter">TICKET DE CAIXA</div>
             <div className="text-[10px] uppercase font-bold">{shopInfo.name}</div>
           </div>
 
           <div className="space-y-4 py-2">
-            <div className="flex flex-col items-center gap-1 border-b border-dashed border-gray-300 pb-4">
+            <div className="flex flex-col items-center gap-1 border-b border-dashed border-gray-400 pb-4">
               <span className="text-[10px] font-bold uppercase text-gray-500">CLIENTE</span>
               <span className="text-sm font-black uppercase text-center">{entity.customerName}</span>
             </div>
@@ -115,9 +127,8 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
               <span className="text-4xl font-black text-black">R$ {entity.total.toFixed(2)}</span>
             </div>
 
-            <div className="flex justify-between text-[10px] pt-2 font-bold opacity-60">
-              <span>CONTROLE: #{entity.id.split('-').pop()}</span>
-              <span>{new Date(entity.date).toLocaleTimeString('pt-BR')}</span>
+            <div className="text-center text-[9px] font-bold opacity-60 pt-2 border-t border-dashed border-gray-300">
+              CONTROLE: #{entity.id.split('-').pop()} | {new Date(entity.date).toLocaleTimeString('pt-BR')}
             </div>
           </div>
         </div>
@@ -127,14 +138,14 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
             <Send size={18} /> WhatsApp
           </button>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setPrintType('fiscal')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white text-gray-400">
+            <button onClick={() => triggerPrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${printType === 'fiscal' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
               <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
             </button>
-            <button onClick={() => setPrintType('delivery')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white text-gray-400">
+            <button onClick={() => triggerPrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${printType === 'delivery' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
               <Truck size={20} /> <span className="text-[9px]">Entrega</span>
             </button>
-            <button onClick={() => handlePrint('payment')} className="p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-indigo-600 text-white shadow-md">
-              <DollarSign size={20} /> <span className="text-[9px]">Caixa</span>
+            <button onClick={() => triggerPrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-400 border-indigo-100'}`}>
+              <Printer size={20} /> <span className="text-[9px]">Imprimir</span>
             </button>
           </div>
         </div>
@@ -147,16 +158,16 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     <div className="w-full space-y-4">
       <div 
         id="printable-area"
-        className="bg-white p-6 text-[11px] font-mono leading-tight receipt-font mx-auto max-w-[320px] border border-gray-100"
+        className="bg-white p-4 text-[11px] font-mono leading-tight receipt-font mx-auto max-w-[300px] border border-gray-200"
       >
-        <div className="text-center border-b-2 border-black pb-4 mb-4">
+        <div className="text-center border-b-2 border-black pb-3 mb-3">
           <div className="font-bold text-lg uppercase">{shopInfo.name}</div>
           <div className="text-[9px] uppercase">{shopInfo.address}</div>
           <div className="text-[9px]">CNPJ: {shopInfo.cnpj}</div>
         </div>
 
         {!isBudget && sale.isDelivery && printType === 'delivery' && (
-          <div className="mb-4 p-3 border-4 border-black space-y-2">
+          <div className="mb-3 p-2 border-4 border-black space-y-1">
             <div className="font-black text-center border-b-2 border-black pb-1 mb-1 text-sm">ORDEM DE ENTREGA</div>
             <div className="flex items-start gap-1">
               <Calendar size={12} className="shrink-0 mt-0.5" />
@@ -195,8 +206,8 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
             <span className="w-1/3 text-right">TOTAL</span>
           </div>
           {items.map((item: any, idx: number) => (
-            <div key={idx} className="flex justify-between py-1 border-b border-gray-100 last:border-0">
-              <span className="w-1/2 uppercase">{item.productName}</span>
+            <div key={idx} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
+              <span className="w-1/2 uppercase leading-none">{item.productName}</span>
               <span className="w-1/6 text-right">{item.quantity}</span>
               <span className="w-1/3 text-right">R${(item.quantity * item.unitPrice).toFixed(2)}</span>
             </div>
@@ -216,6 +227,9 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
         <div className="text-center text-[9px] mt-6 border-t border-black pt-2 opacity-80 uppercase italic">
           {shopInfo.receiptMessage || 'Obrigado pela preferência!'}
         </div>
+        
+        {/* Espaçamento extra para corte da guilhotina na impressora térmica */}
+        <div className="h-12 no-print"></div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 no-print">
@@ -226,14 +240,14 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           <Send size={18} /> WhatsApp
         </button>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setPrintType('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
+          <button onClick={() => triggerPrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'fiscal' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100'}`}>
             <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
           </button>
-          <button onClick={() => setPrintType('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
+          <button onClick={() => triggerPrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-100'}`}>
             <Truck size={20} /> <span className="text-[9px]">Entrega</span>
           </button>
-          <button onClick={() => setPrintType('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-amber-700 border-amber-100'}`}>
-            <DollarSign size={20} /> <span className="text-[9px]">Caixa</span>
+          <button onClick={() => triggerPrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-amber-700 border-amber-100'}`}>
+            <Printer size={20} /> <span className="text-[9px]">Caixa</span>
           </button>
         </div>
       </div>

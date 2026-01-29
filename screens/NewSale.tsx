@@ -224,6 +224,8 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     setIsProcessing(true);
     try {
       const saleId = `SALE-${Date.now()}`;
+      
+      // Construção do objeto de venda evitando valores 'undefined' que o Firebase rejeita
       const newSale: Sale = {
         id: saleId,
         customerId: selectedCustomer!.id,
@@ -234,11 +236,15 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         total: finalTotal,
         paymentMethod: paymentMethod,
         sellerUsername: currentUser.username,
-        isDelivery: isDelivery,
-        deliveryDate: isDelivery ? deliveryDate : undefined,
-        deliveryAddress: isDelivery ? deliveryAddress : undefined,
-        deliveryPhone: isDelivery ? deliveryPhone : undefined
+        isDelivery: isDelivery
       };
+
+      // Adiciona campos de entrega apenas se for modalidade entrega
+      if (isDelivery) {
+        newSale.deliveryDate = deliveryDate;
+        newSale.deliveryAddress = deliveryAddress;
+        newSale.deliveryPhone = deliveryPhone;
+      }
 
       const saleItems: SaleItem[] = cart.map(item => ({
         id: `ITEM-${item.id}-${Date.now()}`,

@@ -21,19 +21,37 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         @media print {
-            body * { visibility: hidden; background: white !important; }
-            #printable-area, #printable-area * { visibility: visible; }
-            #printable-area { 
-                position: absolute; 
-                left: 0; 
-                top: 0; 
+            @page {
+                margin: 0;
+                size: auto;
+            }
+            html, body {
+                height: auto;
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            body * {
+                visibility: hidden;
+            }
+            #printable-area, #printable-area * {
+                visibility: visible;
+            }
+            #printable-area {
+                position: absolute;
+                left: 0;
+                top: 0;
                 width: 100%;
                 margin: 0;
-                padding: 0;
+                padding: 4mm;
+                background: white !important;
+                color: black !important;
                 font-family: 'Courier Prime', monospace;
             }
-            .no-print { display: none !important; }
-            @page { margin: 0; }
+            /* Remove cabeçalhos e rodapés padrão do navegador (URL, Data, etc) */
+            header, footer, nav, button, .no-print {
+                display: none !important;
+            }
         }
         
         .receipt-font { font-family: 'Courier Prime', monospace; }
