@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ReceiptType, ShopInfo, Sale } from '../types';
-import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, MapPin, Calendar, Phone, DollarSign } from 'lucide-react';
+import { Printer, Send, CreditCard, Receipt as ReceiptIcon, Truck, MapPin, Calendar, Phone, DollarSign, TrendingDown } from 'lucide-react';
 
 interface ReceiptProps {
   saleId: string;
@@ -48,13 +48,12 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     loadData();
   }, [saleId, isBudget]);
 
-  // DISPARO AUTOMÁTICO DE IMPRESSÃO REFORÇADO
-  // Agora ele observa tanto o carregamento quanto a mudança de TIPO de impressão
+  // DISPARO AUTOMÁTICO DE IMPRESSÃO
   useEffect(() => {
     if (!loading && entity && autoPrint) {
       const timer = setTimeout(() => {
         window.print();
-      }, 300); // Delay reduzido para maior agilidade
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [loading, entity, printType, autoPrint, saleId]);
@@ -66,6 +65,7 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
   );
 
   const sale = entity as Sale;
+  const hasDiscount = sale.discount && sale.discount > 0;
 
   const handleShareWhatsApp = () => {
     const title = isBudget ? 'ORÇAMENTO' : (printType === 'delivery' ? 'ORDEM DE ENTREGA' : (printType === 'payment' ? 'TICKET DE CAIXA' : 'COMPROVANTE'));
@@ -73,6 +73,10 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     text += `Cliente: ${entity.customerName}\n`;
     
     if (printType === 'payment') {
+      if (hasDiscount) {
+        text += `Subtotal: R$ ${sale.subtotal?.toFixed(2)}\n`;
+        text += `Desconto: - R$ ${sale.discount?.toFixed(2)}\n`;
+      }
       text += `Pagamento: *${sale.paymentMethod?.toUpperCase()}*\n`;
       text += `VALOR TOTAL: *R$ ${entity.total.toFixed(2)}*\n`;
     } else {
@@ -87,6 +91,9 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
         text += `- ${item.productName} (${item.quantity}x)\n`;
       });
       text += `--------------------------\n`;
+      if (hasDiscount) {
+        text += `Desconto: - R$ ${sale.discount?.toFixed(2)}\n`;
+      }
       text += `*TOTAL: R$ ${entity.total.toFixed(2)}*\n`;
     }
     
@@ -96,10 +103,9 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
 
   const triggerPrint = (type: ReceiptType) => {
     setPrintType(type);
-    // O useEffect cuidará do disparo automático ao notar a mudança de printType
   };
 
-  // RENDERIZAÇÃO DO TICKET DE CAIXA (MUITO SIMPLIFICADO E TÉRMICO)
+  // RENDERIZAÇÃO DO TICKET DE CAIXA (PDV/TERMICO)
   if (printType === 'payment' && !isBudget) {
     return (
       <div className="w-full space-y-4">
@@ -115,6 +121,23 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
               <span className="text-sm font-black uppercase text-center">{entity.customerName}</span>
             </div>
 
+            {/* SEÇÃO DE DESCONTO NO TICKET DE CAIXA */}
+            {hasDiscount && (
+              <div className="space-y-1 border-b border-dashed border-gray-400 pb-4">
+                <div className="flex justify-between text-[10px] font-bold uppercase">
+                  <span>Subtotal:</span>
+                  <span>R$ {sale.subtotal?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-[10px] font-black uppercase text-black">
+                  <span>Desconto:</span>
+                  <span>- R$ {sale.discount?.toFixed(2)}</span>
+                </div>
+                <div className="text-center text-[8px] font-black bg-gray-100 py-1 rounded mt-1 uppercase">
+                  Desconto já aplicado no total
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col items-center gap-1">
               <span className="text-[10px] font-bold uppercase text-gray-500">FORMA DE PAGAMENTO</span>
               <div className="bg-black text-white px-4 py-1 rounded-md font-black text-base uppercase">
@@ -123,7 +146,7 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
             </div>
 
             <div className="flex flex-col items-center gap-1 py-4 border-y-2 border-black bg-gray-50">
-              <span className="text-[10px] font-black uppercase text-black">VALOR TOTAL A PAGAR</span>
+              <span className="text-[10px] font-black uppercase text-black">VALOR FINAL</span>
               <span className="text-4xl font-black text-black">R$ {entity.total.toFixed(2)}</span>
             </div>
 
@@ -153,7 +176,7 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
     );
   }
 
-  // RENDERIZAÇÃO PADRÃO (FISCAL OU ENTREGA)
+  // RENDERIZAÇÃO PADRÃO (RECIBO COMPLETO OU ENTREGA)
   return (
     <div className="w-full space-y-4">
       <div 
@@ -214,7 +237,19 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           ))}
         </div>
 
-        <div className="border-t-2 border-black pt-2 mb-4">
+        <div className="border-t-2 border-black pt-2 mb-4 space-y-1">
+          {hasDiscount && (
+            <>
+              <div className="flex justify-between text-[10px] opacity-70">
+                <span>SUBTOTAL BRUTO</span>
+                <span>R$ {sale.subtotal?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-[10px] font-bold">
+                <span>DESCONTO APLICADO</span>
+                <span>- R$ {sale.discount?.toFixed(2)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between text-base font-black">
             <span>TOTAL GERAL</span>
             <span>R$ {entity.total.toFixed(2)}</span>
@@ -228,7 +263,6 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
           {shopInfo.receiptMessage || 'Obrigado pela preferência!'}
         </div>
         
-        {/* Espaçamento extra para corte da guilhotina na impressora térmica */}
         <div className="h-12 no-print"></div>
       </div>
 
