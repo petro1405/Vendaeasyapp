@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Product, User as UserType } from '../types';
 import { db } from '../db';
 import SmartScanner from '../components/SmartScanner';
-import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles, Pencil } from 'lucide-react';
+import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles, Pencil, Percent, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 interface InventoryProps {
   products: Product[];
@@ -30,6 +30,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   const [formPrice, setFormPrice] = useState('');
   const [formCostPrice, setFormCostPrice] = useState('');
   const [formInitialStock, setFormInitialStock] = useState('');
+  const [formAllowDiscount, setFormAllowDiscount] = useState(true);
+  const [formMaxDiscountPercent, setFormMaxDiscountPercent] = useState('10');
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -56,6 +58,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setFormPrice(p.price.toString());
     setFormCostPrice(p.costPrice?.toString() || '');
     setFormInitialStock(p.stockQuantity.toString());
+    setFormAllowDiscount(p.allowDiscount !== false);
+    setFormMaxDiscountPercent(p.maxDiscountPercent?.toString() || '10');
     setIsEditModalOpen(true);
   };
 
@@ -78,7 +82,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       category: formCategory,
       price: parseFloat(formPrice),
       costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
-      stockQuantity: parseInt(formInitialStock)
+      stockQuantity: parseInt(formInitialStock),
+      allowDiscount: formAllowDiscount,
+      maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
 
     closeModals();
@@ -94,7 +100,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       category: formCategory,
       price: parseFloat(formPrice),
       costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
-      stockQuantity: parseInt(formInitialStock)
+      stockQuantity: parseInt(formInitialStock),
+      allowDiscount: formAllowDiscount,
+      maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
 
     closeModals();
@@ -107,6 +115,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setFormPrice('');
     setFormCostPrice('');
     setFormInitialStock('');
+    setFormAllowDiscount(true);
+    setFormMaxDiscountPercent('10');
     setIsAddModalOpen(false);
     setIsEditModalOpen(false);
     setProductToEdit(null);
@@ -174,6 +184,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">
                       {product.category}
                     </span>
+                    {product.allowDiscount === false ? (
+                      <span className="bg-red-100 text-red-600 text-[7px] px-1.5 py-0.5 rounded-full font-black uppercase">Sem Desc.</span>
+                    ) : (
+                      <span className="bg-green-100 text-green-600 text-[7px] px-1.5 py-0.5 rounded-full font-black uppercase">Até {product.maxDiscountPercent}%</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -350,6 +365,43 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                     onChange={(e) => setFormInitialStock(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* NOVOS CAMPOS DE DESCONTO */}
+              <div className="p-4 bg-indigo-50 rounded-3xl space-y-3 border border-indigo-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {formAllowDiscount ? <ShieldCheck className="text-green-600" size={18} /> : <ShieldAlert className="text-amber-500" size={18} />}
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">Configuração de Desconto</span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setFormAllowDiscount(!formAllowDiscount)}
+                    className={`w-10 h-5 rounded-full transition-all relative ${formAllowDiscount ? 'bg-green-600' : 'bg-gray-300'}`}
+                  >
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formAllowDiscount ? 'right-1' : 'left-1'}`}></div>
+                  </button>
+                </div>
+                
+                {formAllowDiscount ? (
+                  <div className="space-y-1 animate-in fade-in slide-in-from-top-1">
+                    <label className="text-[9px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
+                      <Percent size={10} /> Desconto Máximo Permitido
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        placeholder="Ex: 10"
+                        className="w-full px-4 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={formMaxDiscountPercent}
+                        onChange={(e) => setFormMaxDiscountPercent(e.target.value)}
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-300">%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[9px] font-bold text-amber-600 italic">Este produto não receberá descontos no fechamento da venda.</p>
+                )}
               </div>
 
               <div className="flex gap-2 pt-4">

@@ -23,7 +23,8 @@ import {
   Percent,
   TrendingDown,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -165,8 +166,31 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
-  const discountAmount = cartTotal * (discountPercent / 100);
+  
+  // NOVA LÓGICA DE CÁLCULO DE DESCONTO RESPEITANDO OS LIMITES POR PRODUTO
+  const discountAmount = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      // Se o produto não permite desconto, contribuição de desconto é 0
+      if (item.allowDiscount === false) return sum;
+      
+      // O desconto real aplicado no item é o mínimo entre o global e o máximo do produto
+      const maxAllowed = item.maxDiscountPercent ?? 100;
+      const effectivePercent = Math.min(discountPercent, maxAllowed);
+      
+      return sum + (item.price * item.cartQuantity * (effectivePercent / 100));
+    }, 0);
+  }, [cart, discountPercent]);
+
   const finalTotal = cartTotal - discountAmount;
+
+  // Verifica se há itens no carrinho que restringem o desconto aplicado
+  const hasDiscountRestrictions = useMemo(() => {
+    if (discountPercent === 0) return false;
+    return cart.some(item => 
+      item.allowDiscount === false || 
+      (item.maxDiscountPercent !== undefined && discountPercent > item.maxDiscountPercent)
+    );
+  }, [cart, discountPercent]);
 
   const validateSale = () => {
     if (!selectedCustomer) {
@@ -376,7 +400,12 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                   <div key={product.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                     <div className="flex-1">
                       <div className="font-bold text-gray-800 text-sm">{product.name}</div>
-                      <div className="text-xs text-indigo-600 font-bold">R$ {product.price.toFixed(2)}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-indigo-600 font-bold">R$ {product.price.toFixed(2)}</div>
+                        {product.allowDiscount === false && (
+                          <span className="text-[7px] bg-red-50 text-red-500 font-black px-1 rounded-sm uppercase">Fixo</span>
+                        )}
+                      </div>
                     </div>
                     {inCart ? (
                       <div className="flex items-center gap-3 bg-indigo-50 p-1 rounded-xl">
@@ -555,6 +584,13 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     </div>
                   )}
                 </div>
+
+                {hasDiscountRestrictions && (
+                  <div className="flex items-start gap-2 bg-white/50 p-2 rounded-xl border border-green-200/50">
+                    <Info size={12} className="text-green-700 mt-0.5 shrink-0" />
+                    <p className="text-[8px] font-bold text-green-800 leading-tight uppercase">O desconto total pode variar pois alguns itens possuem limites individuais configurados no estoque.</p>
+                  </div>
+                )}
               </div>
 
               {/* TOTAIS */}

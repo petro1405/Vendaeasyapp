@@ -24,6 +24,8 @@ export interface Product {
   costPrice?: number;
   stockQuantity: number;
   category: string;
+  allowDiscount?: boolean;
+  maxDiscountPercent?: number;
 }
 
 export interface Customer {
