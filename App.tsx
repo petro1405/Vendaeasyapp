@@ -86,7 +86,7 @@ const App: React.FC = () => {
 
   if (isInitializing) {
     return (
-      <div className="h-screen bg-indigo-600 flex flex-col items-center justify-center space-y-4">
+      <div className="h-screen bg-brand-primary flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
         <p className="text-white font-black text-xs uppercase tracking-widest animate-pulse">Conectando à Nuvem...</p>
       </div>
@@ -127,16 +127,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-white shadow-xl overflow-hidden border-x border-gray-100">
-      <header className="bg-indigo-600 text-white p-4 flex items-center justify-between sticky top-0 z-10 shadow-md">
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-brand-bg shadow-xl overflow-hidden border-x border-gray-100">
+      <header className="bg-brand-primary text-white p-4 flex items-center justify-between sticky top-0 z-10 shadow-md">
         <div className="flex flex-col">
           <h1 className="text-xl font-bold flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab(AppTab.DASHBOARD)}>
-            <span className="bg-white text-indigo-600 p-1 rounded-md">V</span>
+            <span className="bg-brand-action text-brand-black p-1 rounded-md">V</span>
             VendaEasy
           </h1>
           <div className="flex items-center gap-1 mt-0.5">
-            {isSynced ? <Check size={10} className="text-green-400" /> : <Cloud size={10} className="text-indigo-300 animate-pulse" />}
-            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200">
+            {isSynced ? <Check size={10} className="text-green-400" /> : <Cloud size={10} className="text-blue-300 animate-pulse" />}
+            <span className="text-[8px] font-black uppercase tracking-widest text-blue-100/60">
               {isSynced ? 'Cloud Ativa' : 'Sincronizando...'}
             </span>
           </div>
@@ -147,14 +147,14 @@ const App: React.FC = () => {
           </div>
           <button 
             onClick={() => setActiveTab(AppTab.SETTINGS)}
-            className={`p-2 rounded-xl transition-all ${activeTab === AppTab.SETTINGS ? 'bg-white text-indigo-600' : 'bg-indigo-500 text-white hover:bg-indigo-400'}`}
+            className={`p-2 rounded-xl transition-all ${activeTab === AppTab.SETTINGS ? 'bg-brand-action text-brand-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
           >
             <SettingsIcon size={18} />
           </button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pb-20 bg-slate-50">
+      <main className="flex-1 overflow-y-auto no-scrollbar pb-20">
         {renderScreen()}
       </main>
 
@@ -177,8 +177,8 @@ interface NavButtonProps {
 }
 
 const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`flex flex-col items-center justify-center w-full transition-all duration-200 ${active ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
-    <div className={`p-1.5 rounded-2xl ${active ? 'bg-indigo-50' : ''}`}>{icon}</div>
+  <button onClick={onClick} className={`flex flex-col items-center justify-center w-full transition-all duration-200 ${active ? 'text-brand-primary scale-110' : 'text-gray-400'}`}>
+    <div className={`p-1.5 rounded-2xl ${active ? 'bg-brand-primary/10' : ''}`}>{icon}</div>
     <span className={`text-[8px] mt-0.5 uppercase tracking-tighter font-black ${active ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
   </button>
 );

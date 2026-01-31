@@ -24,7 +24,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Form states
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formPrice, setFormPrice] = useState('');
@@ -72,11 +71,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
-    if (!formName || !formPrice || !formCategory || !formInitialStock) {
-      alert("Por favor, preencha todos os campos obrigatórios.");
-      return;
-    }
-
     await db.addProduct({
       name: formName,
       category: formCategory,
@@ -86,7 +80,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       allowDiscount: formAllowDiscount,
       maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
-
     closeModals();
     onUpdate();
   };
@@ -94,7 +87,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin || !productToEdit) return;
-
     await db.updateProduct(productToEdit.id, {
       name: formName,
       category: formCategory,
@@ -104,7 +96,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       allowDiscount: formAllowDiscount,
       maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
-
     closeModals();
     onUpdate();
   };
@@ -123,7 +114,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 bg-brand-bg">
       {isScannerOpen && (
         <SmartScanner 
           mode="inventory" 
@@ -133,27 +124,27 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       )}
 
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black text-gray-800">Estoque</h2>
+        <h2 className="text-2xl font-black text-brand-primary tracking-tight">Estoque</h2>
         {isAdmin ? (
           <div className="flex gap-2">
             <button 
               onClick={() => setIsScannerOpen(true)}
-              className="bg-white text-indigo-600 p-3 rounded-2xl border border-indigo-100 shadow-sm active:scale-95 transition-all"
+              className="bg-white text-brand-primary p-3 rounded-2xl border border-brand-primary/10 shadow-sm active:scale-95 transition-all"
             >
               <Camera size={20} />
             </button>
             <button 
               onClick={() => setIsAddModalOpen(true)}
-              className="bg-indigo-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all flex items-center gap-2"
+              className="bg-brand-action text-brand-black p-3 rounded-2xl shadow-xl shadow-brand-action/20 active:scale-95 transition-all flex items-center gap-2"
             >
               <Plus size={20} />
               <span className="text-xs font-black uppercase tracking-wider pr-1">Novo Item</span>
             </button>
           </div>
         ) : (
-          <div className="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-xl flex items-center gap-2">
+          <div className="bg-white text-gray-400 px-3 py-1.5 rounded-xl flex items-center gap-2 border border-gray-100">
             <Lock size={14} />
-            <span className="text-[10px] font-black uppercase tracking-tighter">Somente Consulta</span>
+            <span className="text-[10px] font-black uppercase tracking-tighter">Consulta</span>
           </div>
         )}
       </div>
@@ -163,7 +154,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         <input 
           type="text"
           placeholder="Buscar produto ou categoria..."
-          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[1.5rem] shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-sm"
+          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[1.5rem] shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all font-medium text-sm"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -171,36 +162,25 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
 
       <div className="space-y-3 pb-8">
         {filteredProducts.map(product => (
-          <div key={product.id} className={`bg-white p-5 rounded-[2rem] border transition-all ${editingId === product.id ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-gray-100 shadow-sm'}`}>
+          <div key={product.id} className={`bg-white p-5 rounded-[2rem] border transition-all ${editingId === product.id ? 'border-brand-primary ring-4 ring-brand-primary/5' : 'border-gray-100 shadow-sm'}`}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${product.stockQuantity < 5 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${product.stockQuantity < 5 ? 'bg-red-50 text-red-500' : 'bg-brand-primary/5 text-brand-primary'}`}>
                   <Package size={20} />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800 text-sm">{product.name}</h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Layers size={10} className="text-gray-400" />
                     <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">
                       {product.category}
                     </span>
-                    {product.allowDiscount === false ? (
-                      <span className="bg-red-100 text-red-600 text-[7px] px-1.5 py-0.5 rounded-full font-black uppercase">Sem Desc.</span>
-                    ) : (
-                      <span className="bg-green-100 text-green-600 text-[7px] px-1.5 py-0.5 rounded-full font-black uppercase">Até {product.maxDiscountPercent}%</span>
-                    )}
                   </div>
                 </div>
               </div>
-              <div className="text-right flex flex-col items-end">
-                <div className="text-indigo-600 font-black text-sm">
-                  R$ {product.price.toFixed(2)}
-                </div>
+              <div className="text-right">
+                <div className="text-brand-primary font-black text-sm">R$ {product.price.toFixed(2)}</div>
                 {isAdmin && (
-                  <button 
-                    onClick={() => openEditModal(product)}
-                    className="mt-1 p-2 text-indigo-400 hover:text-indigo-600 bg-indigo-50 rounded-xl transition-all active:scale-90"
-                  >
+                  <button onClick={() => openEditModal(product)} className="mt-1 p-2 text-brand-primary/60 hover:text-brand-primary bg-brand-primary/5 rounded-xl active:scale-90 transition-all">
                     <Pencil size={14} />
                   </button>
                 )}
@@ -208,218 +188,35 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-              <div className="text-[10px] font-black text-gray-400 uppercase">Quantidade / Medida</div>
-              
-              {editingId === product.id ? (
-                <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-2xl">
-                  <button 
-                    onClick={() => setTempStock(Math.max(0, tempStock - 1))}
-                    className="w-8 h-8 flex items-center justify-center bg-white text-gray-600 rounded-xl shadow-sm active:scale-90 transition-all"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="w-16 text-center font-black text-lg bg-transparent text-indigo-700 outline-none border-b-2 border-indigo-200"
-                    value={tempStock}
-                    onChange={(e) => setTempStock(parseFloat(e.target.value) || 0)}
-                  />
-                  <button 
-                    onClick={() => setTempStock(tempStock + 1)}
-                    className="w-8 h-8 flex items-center justify-center bg-white text-gray-600 rounded-xl shadow-sm active:scale-90 transition-all"
-                  >
-                    <Plus size={14} />
-                  </button>
-                  <button 
-                    onClick={() => handleQuickSave(product.id)}
-                    className="ml-2 w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg active:scale-90 transition-all"
-                  >
-                    <Check size={18} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <span className={`text-base font-black ${product.stockQuantity < 5 ? 'text-red-500' : 'text-gray-800'}`}>
-                    {product.stockQuantity.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                  </span>
-                  {isAdmin && (
-                    <button 
-                      onClick={() => startQuickAdjust(product)}
-                      className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all uppercase"
-                    >
-                      Ajustar
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="text-[10px] font-black text-gray-400 uppercase">Estoque Disponível</div>
+              <div className="flex items-center gap-3">
+                <span className={`text-base font-black ${product.stockQuantity < 5 ? 'text-red-500' : 'text-gray-800'}`}>
+                  {product.stockQuantity.toLocaleString('pt-BR')}
+                </span>
+                {isAdmin && (
+                  <button onClick={() => startQuickAdjust(product)} className="text-[10px] font-black text-brand-primary bg-brand-primary/5 px-4 py-2 rounded-xl active:scale-95 transition-all uppercase">Ajustar</button>
+                )}
+              </div>
             </div>
           </div>
         ))}
-
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-20 text-gray-400 italic flex flex-col items-center gap-4">
-            <Package size={48} className="opacity-10" />
-            <p className="text-sm font-medium">Nenhum produto em estoque.</p>
-          </div>
-        )}
       </div>
 
-      {/* Add/Edit Product Modal */}
-      {isAdmin && (isAddModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto py-8">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 flex flex-col my-auto">
-            <div className="p-6 bg-indigo-600 text-white flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 p-2 rounded-xl">
-                  {isEditModalOpen ? <Pencil size={20} /> : <Plus size={20} />}
-                </div>
-                <h3 className="font-black text-sm uppercase tracking-widest">{isEditModalOpen ? 'Editar Produto' : 'Novo Produto'}</h3>
-              </div>
-              <button 
-                onClick={closeModals} 
-                className="p-2 hover:bg-white/20 rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
+      {(isAddModalOpen || isEditModalOpen) && (
+        <div className="fixed inset-0 bg-brand-primary/20 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+            <div className="p-6 bg-brand-primary text-white flex justify-between items-center">
+              <h3 className="font-black text-sm uppercase tracking-widest">{isEditModalOpen ? 'Editar Item' : 'Novo Item'}</h3>
+              <button onClick={closeModals} className="p-2 hover:bg-white/20 rounded-full transition-colors"><X size={20} /></button>
             </div>
-
             <form onSubmit={isEditModalOpen ? handleUpdateProduct : handleAddProduct} className="p-6 space-y-4">
-              <div className="space-y-1">
-                <div className="flex justify-between items-end">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome do Produto</label>
-                  {!isEditModalOpen && (
-                    <button 
-                      type="button"
-                      onClick={() => { setIsAddModalOpen(false); setIsScannerOpen(true); }}
-                      className="flex items-center gap-1 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase tracking-widest"
-                    >
-                      <Sparkles size={10} /> Scanner IA
-                    </button>
-                  )}
-                </div>
-                <input 
-                  type="text"
-                  required
-                  placeholder="Ex: Cimento CP-III"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Categoria</label>
-                <select 
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                >
-                  <option value="">Selecione...</option>
-                  <option value="Basicos">Básicos</option>
-                  <option value="Alvenaria">Alvenaria</option>
-                  <option value="Hidraulica">Hidráulica</option>
-                  <option value="Eletrica">Elétrica</option>
-                  <option value="Ferragens">Ferragens</option>
-                  <option value="Acabamento">Acabamento</option>
-                  <option value="Ferramentas">Ferramentas</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Preço Custo (R$)</label>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={formCostPrice}
-                    onChange={(e) => setFormCostPrice(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Preço Venda (R$)</label>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="0,00"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque / Metragem {isEditModalOpen ? 'Atual' : 'Inicial'}</label>
-                <div className="relative">
-                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                  <input 
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="Ex: 50,50"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={formInitialStock}
-                    onChange={(e) => setFormInitialStock(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* NOVOS CAMPOS DE DESCONTO */}
-              <div className="p-4 bg-indigo-50 rounded-3xl space-y-3 border border-indigo-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {formAllowDiscount ? <ShieldCheck className="text-green-600" size={18} /> : <ShieldAlert className="text-amber-500" size={18} />}
-                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">Configuração de Desconto</span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setFormAllowDiscount(!formAllowDiscount)}
-                    className={`w-10 h-5 rounded-full transition-all relative ${formAllowDiscount ? 'bg-green-600' : 'bg-gray-300'}`}
-                  >
-                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formAllowDiscount ? 'right-1' : 'left-1'}`}></div>
-                  </button>
-                </div>
-                
-                {formAllowDiscount ? (
-                  <div className="space-y-1 animate-in fade-in slide-in-from-top-1">
-                    <label className="text-[9px] font-black text-indigo-600 uppercase ml-1 flex items-center gap-1">
-                      <Percent size={10} /> Desconto Máximo Permitido
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        placeholder="Ex: 10"
-                        className="w-full px-4 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-                        value={formMaxDiscountPercent}
-                        onChange={(e) => setFormMaxDiscountPercent(e.target.value)}
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-300">%</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-[9px] font-bold text-amber-600 italic">Este produto não receberá descontos no fechamento da venda.</p>
-                )}
-              </div>
-
+              <input type="text" placeholder="Nome do Produto" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" value={formName} onChange={(e) => setFormName(e.target.value)} required />
+              <input type="number" step="0.01" placeholder="Preço" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required />
+              <input type="number" step="0.01" placeholder="Estoque Inicial" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" value={formInitialStock} onChange={(e) => setFormInitialStock(e.target.value)} required />
+              
               <div className="flex gap-2 pt-4">
-                <button 
-                  type="button"
-                  onClick={closeModals}
-                  className="flex-1 py-4 text-sm font-bold text-gray-400 bg-gray-100 rounded-3xl active:scale-95 transition-all uppercase tracking-widest"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className={`flex-1 py-4 text-sm font-black text-white rounded-3xl shadow-xl active:scale-95 transition-all uppercase tracking-widest ${isEditModalOpen ? 'bg-amber-500 shadow-amber-100' : 'bg-indigo-600 shadow-indigo-100'}`}
-                >
-                  {isEditModalOpen ? 'Atualizar' : 'Cadastrar'}
-                </button>
+                <button type="button" onClick={closeModals} className="flex-1 py-4 text-xs font-black text-gray-400 bg-gray-100 rounded-2xl uppercase tracking-widest">Cancelar</button>
+                <button type="submit" className="flex-1 py-4 text-xs font-black text-brand-black bg-brand-action rounded-2xl uppercase tracking-widest shadow-lg shadow-brand-action/20">Salvar</button>
               </div>
             </form>
           </div>
