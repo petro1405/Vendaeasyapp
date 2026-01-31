@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { ShopInfo, User as UserType, PasswordResetRequest } from '../types';
-// Fixed missing ShieldQuestion import from lucide-react
-import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight, Trash2, KeyRound, CheckCircle2, AlertCircle, ShieldQuestion } from 'lucide-react';
+import { Store, Save, Upload, Image as ImageIcon, LogOut, User, Lock, Users, Monitor, RefreshCcw, Download, Shield, ShieldAlert, ArrowLeftRight, Trash2, KeyRound, CheckCircle2, AlertCircle, ShieldQuestion, X } from 'lucide-react';
 
 interface SettingsProps {
   onUpdate: () => void;
@@ -35,9 +34,11 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
     setInfo(shopInfo);
     setCurrentUser(user);
     if (user?.role === 'admin') {
-      const users = await db.getUsers();
+      const [users, requests] = await Promise.all([
+        db.getUsers(),
+        db.getResetRequests()
+      ]);
       setRegisteredUsers(users);
-      const requests = await db.getResetRequests();
       setResetRequests(requests);
     }
     setLoading(false);
@@ -125,16 +126,21 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
 
   const handleResolveReset = async (req: PasswordResetRequest) => {
     if (!isAdmin) return;
-    // Buscamos o UID do usuário pelo username
+    
     const targetUser = registeredUsers.find(u => u.username === req.username);
     if (!targetUser) {
-      alert("Usuário não encontrado na lista atual.");
+      alert(`Usuário "@${req.username}" não encontrado na base de dados ativa.`);
       return;
     }
 
-    if (confirm(`Autorizar reset de senha para ${req.name}? Isso permitirá que ele se registre novamente com o mesmo nome e uma nova senha.`)) {
-      await db.resolvePasswordReset(req.id, targetUser.uid!);
-      loadData();
+    if (confirm(`Autorizar redefinição para ${targetUser.name} (@${req.username})? O usuário será excluído para permitir um novo registro.`)) {
+      try {
+        await db.resolvePasswordReset(req.id, targetUser.uid!);
+        alert("Reset autorizado. Informe ao usuário que ele pode se registrar novamente.");
+        loadData();
+      } catch (err: any) {
+        alert("Erro ao autorizar reset: " + err.message);
+      }
     }
   };
 
@@ -177,7 +183,6 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
         </div>
       </div>
 
-      {/* Seção Alterar Minha Senha */}
       <div className="space-y-4 bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
         <div className="flex items-center gap-2 mb-2">
           <KeyRound size={18} className="text-indigo-600" />
@@ -222,33 +227,35 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
         </form>
       </div>
 
-      {/* Seção Gestão de Senhas - Apenas Admin */}
       {isAdmin && resetRequests.length > 0 && (
-        <div className="space-y-4 bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 shadow-sm animate-pulse">
+        <div className="space-y-4 bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
             <ShieldQuestion size={18} className="text-amber-600" />
             <h3 className="text-sm font-black uppercase text-amber-800 tracking-tight">Solicitações de Senha</h3>
           </div>
           <div className="space-y-2">
-            {resetRequests.map(req => (
-              <div key={req.id} className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-amber-200">
-                <div>
-                  <div className="text-xs font-bold text-gray-800">{req.name}</div>
-                  <div className="text-[9px] font-black text-amber-600 uppercase tracking-tighter">@{req.username}</div>
+            {resetRequests.map(req => {
+              const u = registeredUsers.find(user => user.username === req.username);
+              return (
+                <div key={req.id} className="flex items-center justify-between p-4 bg-white rounded-3xl shadow-sm border border-amber-200">
+                  <div className="flex-1">
+                    <div className="text-xs font-black text-gray-800">{u?.name || "Usuário Desconhecido"}</div>
+                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-tighter">@{req.username}</div>
+                    <div className="text-[8px] text-gray-400 font-bold uppercase mt-1">Solicitado em: {new Date(req.date).toLocaleDateString()}</div>
+                  </div>
+                  <button 
+                    onClick={() => handleResolveReset(req)}
+                    className="px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-black uppercase text-[9px] tracking-widest shadow-lg shadow-amber-200 active:scale-95"
+                  >
+                    Autorizar
+                  </button>
                 </div>
-                <button 
-                  onClick={() => handleResolveReset(req)}
-                  className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black uppercase text-[9px] tracking-widest shadow-lg shadow-amber-200 active:scale-95"
-                >
-                  Autorizar
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Seção Gestão de Equipe - Apenas Admin */}
       {isAdmin && (
         <div className="space-y-4 bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -320,7 +327,6 @@ const Settings: React.FC<SettingsProps> = ({ onUpdate, onLogout }) => {
       )}
 
       <form onSubmit={handleSave} className="space-y-6 pb-24">
-        {/* Logo Section */}
         <div className="flex flex-col items-center justify-center p-6 bg-white border border-dashed border-gray-200 rounded-[2.5rem] space-y-4 shadow-sm">
           <div className="relative group">
             <div className="w-24 h-24 rounded-3xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shadow-inner">

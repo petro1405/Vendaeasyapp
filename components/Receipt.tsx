@@ -88,7 +88,8 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
       }
       text += `\n--------------------------\n`;
       items.forEach(item => {
-        text += `- ${item.productName} (${item.quantity}x)\n`;
+        const qtyFormatted = item.quantity.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        text += `- ${item.productName} (${qtyFormatted}x)\n`;
       });
       text += `--------------------------\n`;
       if (hasDiscount) {
@@ -161,13 +162,13 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
             <Send size={18} /> WhatsApp
           </button>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => triggerPrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${printType === 'fiscal' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
+            <button onClick={() => triggerPrint('fiscal')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${(printType as string) === 'fiscal' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
               <ReceiptIcon size={20} /> <span className="text-[9px]">Venda</span>
             </button>
-            <button onClick={() => triggerPrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${printType === 'delivery' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
+            <button onClick={() => triggerPrint('delivery')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 bg-white transition-all ${(printType as string) === 'delivery' ? 'text-indigo-600 border-indigo-200' : 'text-gray-400 border-gray-100'}`}>
               <Truck size={20} /> <span className="text-[9px]">Entrega</span>
             </button>
-            <button onClick={() => triggerPrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${printType === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-400 border-indigo-100'}`}>
+            <button onClick={() => triggerPrint('payment')} className={`p-3 border rounded-xl font-bold flex flex-col items-center gap-1 shadow-md transition-all ${(printType as string) === 'payment' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-400 border-indigo-100'}`}>
               <Printer size={20} /> <span className="text-[9px]">Imprimir</span>
             </button>
           </div>
@@ -228,13 +229,16 @@ const Receipt: React.FC<ReceiptProps> = ({ saleId, isBudget = false, initialType
             <span className="w-1/6 text-right">QTD</span>
             <span className="w-1/3 text-right">TOTAL</span>
           </div>
-          {items.map((item: any, idx: number) => (
-            <div key={idx} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
-              <span className="w-1/2 uppercase leading-none">{item.productName}</span>
-              <span className="w-1/6 text-right">{item.quantity}</span>
-              <span className="w-1/3 text-right">R${(item.quantity * item.unitPrice).toFixed(2)}</span>
-            </div>
-          ))}
+          {items.map((item: any, idx: number) => {
+            const qtyFormatted = item.quantity.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            return (
+              <div key={idx} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
+                <span className="w-1/2 uppercase leading-none">{item.productName}</span>
+                <span className="w-1/6 text-right">{qtyFormatted}</span>
+                <span className="w-1/3 text-right">R${(item.quantity * item.unitPrice).toFixed(2)}</span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="border-t-2 border-black pt-2 mb-4 space-y-1">

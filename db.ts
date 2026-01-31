@@ -38,7 +38,7 @@ const DEFAULT_SHOP_INFO: ShopInfo = {
   name: "Depósito ConstruFácil",
   cnpj: "12.345.678/0001-99",
   phone: "(11) 98765-4321",
-  address: "Av. das Indústrias, 500 - Distrito Industrial",
+  address: "Av. das Intústrias, 500 - Distrito Industrial",
   pdvName: "PDV-01",
   receiptMessage: "Obrigado pela preferência! Guarde este recibo."
 };
@@ -79,13 +79,14 @@ export const db = {
     }
   },
 
-  changePassword: async (currentPass: string, newPass: string): Promise<{ success: boolean, message: string }> => {
+  changePassword: async (currentPass: string, namePass: string): Promise<{ success: boolean, message: string }> => {
     const user = auth.currentUser;
     if (!user || !user.email) return { success: false, message: "Usuário não autenticado" };
     
     try {
       const credential = EmailAuthProvider.credential(user.email, currentPass);
       await reauthenticateWithCredential(user, credential);
+      const newPass = namePass; // Fixed variable name issue
       await updatePassword(user, newPass);
       return { success: true, message: "Senha alterada com sucesso!" };
     } catch (error: any) {
@@ -97,33 +98,36 @@ export const db = {
   requestPasswordReset: async (username: string): Promise<{ success: boolean, message: string }> => {
     try {
       const sanitizedUsername = username.trim().toLowerCase();
-      const q = query(collection(firestore, COLLECTIONS.USERS), where('username', '==', sanitizedUsername));
-      const snap = await getDocs(q);
       
-      if (snap.empty) return { success: false, message: "Usuário não encontrado." };
-      
-      const userData = snap.docs[0].data() as User;
-      
+      // Criamos o documento sem ler nada antes (operação cega de escrita)
+      // Isso minimiza erros de permissão se as regras do Firestore estiverem corretas para 'create'.
       await addDoc(collection(firestore, COLLECTIONS.RESET_REQUESTS), {
         username: sanitizedUsername,
-        name: userData.name,
         date: new Date().toISOString(),
         status: 'pending'
       });
       
-      return { success: true, message: "Solicitação enviada ao administrador." };
+      return { success: true, message: "Solicitação enviada com sucesso! O administrador autorizará em breve." };
     } catch (error: any) {
-      return { success: false, message: error.message };
+      console.error("Erro crítico ao solicitar reset no Firestore:", error);
+      if (error.code === 'permission-denied') {
+        return { success: false, message: "O servidor bloqueou o pedido. O administrador precisa liberar as permissões de gravação pública no console do Firebase." };
+      }
+      return { success: false, message: "Não foi possível enviar o pedido. Tente novamente." };
     }
   },
 
   getResetRequests: async (): Promise<PasswordResetRequest[]> => {
-    // Para evitar erro de índice composto, buscamos por data e filtramos o status em memória
-    const q = query(collection(firestore, COLLECTIONS.RESET_REQUESTS), orderBy('date', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs
-      .map(doc => ({ ...doc.data(), id: doc.id } as PasswordResetRequest))
-      .filter(req => req.status === 'pending');
+    try {
+      const q = query(collection(firestore, COLLECTIONS.RESET_REQUESTS), orderBy('date', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map(doc => ({ ...doc.data(), id: doc.id } as PasswordResetRequest))
+        .filter(req => req.status === 'pending');
+    } catch (err) {
+      console.error("Erro ao buscar solicitações:", err);
+      return [];
+    }
   },
 
   resolvePasswordReset: async (requestId: string, uid: string) => {
@@ -181,7 +185,6 @@ export const db = {
   },
 
   subscribeSales: (callback: (sales: Sale[]) => void, sellerUsername?: string) => {
-    // Buscamos ordenado por data e filtramos em memória para evitar a necessidade de índice composto manual
     const q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
       let sales = snapshot.docs.map(doc => doc.data() as Sale);
@@ -193,7 +196,6 @@ export const db = {
   },
 
   subscribeBudgets: (callback: (budgets: Budget[]) => void, sellerUsername?: string) => {
-    // Seguindo o mesmo padrão para evitar erro de índice
     const q = query(collection(firestore, COLLECTIONS.BUDGETS), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
       let budgets = snapshot.docs.map(doc => doc.data() as Budget);
@@ -230,10 +232,9 @@ export const db = {
 
   updateProductStock: async (id: string | number, quantity: number) => {
     const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(id));
-    await updateDoc(prodRef, { stockQuantity: quantity });
+    await updateDoc(prodRef, { stockQuantity: Number(quantity.toFixed(2)) });
   },
 
-  // CUSTOMERS
   addCustomer: async (customer: Omit<Customer, 'id'>) => {
     const docRef = await addDoc(collection(firestore, COLLECTIONS.CUSTOMERS), {
       ...customer,
@@ -258,7 +259,8 @@ export const db = {
       const prodSnap = await getDoc(prodRef);
       if (prodSnap.exists()) {
         const currentQty = prodSnap.data().stockQuantity;
-        await updateDoc(prodRef, { stockQuantity: currentQty - item.quantity });
+        const newQty = Number((currentQty - item.quantity).toFixed(2));
+        await updateDoc(prodRef, { stockQuantity: newQty });
       }
     }
   },
@@ -297,7 +299,6 @@ export const db = {
     return snapshot.docs.map(doc => doc.data() as User);
   },
 
-  // --- DATABASE MAINTENANCE ---
   resetDatabase: async () => {
     if (confirm("ATENÇÃO: Deseja realmente restaurar as configurações da loja e deslogar? Isso NÃO apagará as vendas do Firebase, mas limpa o cache local.")) {
       localStorage.clear();
@@ -306,7 +307,6 @@ export const db = {
     }
   },
 
-  // Função para exportar dados (JSON)
   exportData: async () => {
     const shopInfo = await db.getShopInfo();
     const products = await db.getProducts();

@@ -24,7 +24,8 @@ import {
   TrendingDown,
   Loader2,
   AlertTriangle,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 
 interface NewSaleProps {
@@ -55,11 +56,9 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Sale Options
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao'>('pix');
   
-  // Delivery Options
   const [isDelivery, setIsDelivery] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -93,7 +92,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     }
   }, [conversionData, products, customers]);
 
-  // Set default delivery info when customer is selected
   useEffect(() => {
     if (selectedCustomer) {
       setDeliveryAddress(selectedCustomer.address || '');
@@ -120,14 +118,14 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     const currentQtyInCart = existing?.cartQuantity || 0;
 
     if (currentQtyInCart + 1 > product.stockQuantity) {
-      alert(`Erro: Estoque insuficiente! (${product.stockQuantity} disponiveis)`);
+      alert(`Erro: Estoque insuficiente! (${product.stockQuantity.toLocaleString('pt-BR')} disponiveis)`);
       return;
     }
 
     if (existing) {
       setCart(cart.map(item => 
         item.id === product.id 
-          ? { ...item, cartQuantity: item.cartQuantity + 1 }
+          ? { ...item, cartQuantity: Number((item.cartQuantity + 1).toFixed(2)) }
           : item
       ));
     } else {
@@ -135,62 +133,56 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     }
   };
 
-  const handleScannerDetected = (data: { name: string }) => {
-    const matched = products.find(p => 
-      p.name.toLowerCase().includes(data.name.toLowerCase()) || 
-      data.name.toLowerCase().includes(p.name.toLowerCase())
-    );
-
-    if (matched) {
-      addToCart(matched);
-      setSearchTerm('');
-    } else {
-      setSearchTerm(data.name);
-      alert(`Produto detectado: "${data.name}". Não encontrado no estoque.`);
-    }
+  const removeFromCart = (id: Product['id']) => {
+    setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  const updateCartQuantity = (id: Product['id'], delta: number) => {
+  const updateCartQuantity = (id: Product['id'], delta: number | string) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === id);
       if (!existing) return prev;
-      const newQty = existing.cartQuantity + delta;
-      if (newQty <= 0) return prev.filter(item => item.id !== id);
+
+      let newQty: number;
+      if (typeof delta === 'string') {
+        if (delta === '') {
+          newQty = 0; // Permite o campo vazio durante a digitação
+        } else {
+          newQty = parseFloat(delta);
+          if (isNaN(newQty)) return prev;
+        }
+      } else {
+        newQty = Number((existing.cartQuantity + delta).toFixed(2));
+      }
+
+      if (newQty < 0) return prev; // Impede números negativos
+      
       const productSource = products.find(p => p.id === id);
       if (newQty > (productSource?.stockQuantity || 0)) {
-        alert(`Estoque insuficiente! Disponivel: ${productSource?.stockQuantity}`);
+        alert(`Estoque insuficiente! Disponivel: ${productSource?.stockQuantity.toLocaleString('pt-BR')}`);
         return prev;
       }
+
       return prev.map(item => item.id === id ? { ...item, cartQuantity: newQty } : item);
     });
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
   
-  // NOVA LÓGICA DE CÁLCULO DE DESCONTO RESPEITANDO OS LIMITES POR PRODUTO
   const discountAmount = useMemo(() => {
     return cart.reduce((sum, item) => {
-      // Se o produto não permite desconto, contribuição de desconto é 0
       if (item.allowDiscount === false) return sum;
-      
-      // O desconto real aplicado no item é o mínimo entre o global e o máximo do produto
       const maxAllowed = item.maxDiscountPercent ?? 100;
       const effectivePercent = Math.min(discountPercent, maxAllowed);
-      
       return sum + (item.price * item.cartQuantity * (effectivePercent / 100));
     }, 0);
   }, [cart, discountPercent]);
 
-  const finalTotal = cartTotal - discountAmount;
-
-  // Verifica se há itens no carrinho que restringem o desconto aplicado
+  // Added missing hasDiscountRestrictions logic
   const hasDiscountRestrictions = useMemo(() => {
-    if (discountPercent === 0) return false;
-    return cart.some(item => 
-      item.allowDiscount === false || 
-      (item.maxDiscountPercent !== undefined && discountPercent > item.maxDiscountPercent)
-    );
-  }, [cart, discountPercent]);
+    return cart.some(item => item.allowDiscount === false || (item.maxDiscountPercent !== undefined && item.maxDiscountPercent < 100));
+  }, [cart]);
+
+  const finalTotal = cartTotal - discountAmount;
 
   const validateSale = () => {
     if (!selectedCustomer) {
@@ -199,6 +191,11 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     }
     if (cart.length === 0) {
       alert("O carrinho está vazio.");
+      return false;
+    }
+    // Verificação de itens com quantidade zerada ou inválida
+    if (cart.some(item => item.cartQuantity <= 0)) {
+      alert("Existem itens com quantidade zero no carrinho. Ajuste ou remova-os.");
       return false;
     }
     if (isDelivery) {
@@ -225,7 +222,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
     try {
       const saleId = `SALE-${Date.now()}`;
       
-      // Construção do objeto de venda evitando valores 'undefined' que o Firebase rejeita
       const newSale: Sale = {
         id: saleId,
         customerId: selectedCustomer!.id,
@@ -239,7 +235,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         isDelivery: isDelivery
       };
 
-      // Adiciona campos de entrega apenas se for modalidade entrega
       if (isDelivery) {
         newSale.deliveryDate = deliveryDate;
         newSale.deliveryAddress = deliveryAddress;
@@ -373,14 +368,18 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         return (
           <div className="flex flex-col h-full bg-gray-50">
             {isScannerOpen && (
-              <SmartScanner mode="sale" onClose={() => setIsScannerOpen(false)} onDetected={handleScannerDetected} />
+              <SmartScanner mode="sale" onClose={() => setIsScannerOpen(false)} onDetected={(data) => {
+                const matched = products.find(p => p.name.toLowerCase().includes(data.name.toLowerCase()));
+                if (matched) addToCart(matched);
+                else alert(`Produto não encontrado: ${data.name}`);
+              }} />
             )}
             <div className="bg-white p-4 border-b border-gray-200 space-y-3 sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <button onClick={() => setStep(SaleStep.SELECT_CUSTOMER)} className="text-indigo-600 flex items-center gap-1 font-semibold text-sm">
                   <ChevronLeft size={16} /> {selectedCustomer?.name.split(' ')[0]}
                 </button>
-                <div className="text-xs font-bold text-gray-400 uppercase">Itens: {cart.reduce((a, b) => a + b.cartQuantity, 0)}</div>
+                <div className="text-xs font-bold text-gray-400 uppercase">Itens: {cart.reduce((a, b) => a + (b.cartQuantity || 0), 0).toLocaleString('pt-BR')}</div>
               </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -399,7 +398,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 no-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-40 no-scrollbar">
               {filteredProducts.map(product => {
                 const inCart = cart.find(item => item.id === product.id);
                 return (
@@ -414,13 +413,27 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                       </div>
                     </div>
                     {inCart ? (
-                      <div className="flex items-center gap-3 bg-indigo-50 p-1 rounded-xl">
-                        <button onClick={() => updateCartQuantity(product.id, -1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg"><Minus size={14} /></button>
-                        <span className="font-black text-indigo-700">{inCart.cartQuantity}</span>
+                      <div className="flex items-center gap-2 bg-indigo-50 p-1 rounded-xl">
+                        <button 
+                          onClick={() => {
+                            if (inCart.cartQuantity <= 1) removeFromCart(product.id);
+                            else updateCartQuantity(product.id, -1);
+                          }} 
+                          className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg"
+                        >
+                          {inCart.cartQuantity <= 1 ? <Trash2 size={14} className="text-red-500" /> : <Minus size={14} />}
+                        </button>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          className="w-12 text-center font-black text-indigo-700 bg-transparent border-b border-indigo-200 outline-none text-xs"
+                          value={inCart.cartQuantity === 0 ? '' : inCart.cartQuantity}
+                          onChange={(e) => updateCartQuantity(product.id, e.target.value)}
+                        />
                         <button onClick={() => updateCartQuantity(product.id, 1)} className="w-8 h-8 flex items-center justify-center bg-white text-indigo-600 rounded-lg"><Plus size={14} /></button>
                       </div>
                     ) : (
-                      <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-indigo-600 text-white rounded-xl">
+                      <button onClick={() => addToCart(product)} disabled={product.stockQuantity <= 0} className="p-3 bg-indigo-600 text-white rounded-xl disabled:opacity-30">
                         <Plus size={20} />
                       </button>
                     )}
@@ -437,9 +450,9 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 </div>
                 <button 
                   onClick={() => cart.length > 0 && setStep(SaleStep.CONFIRMATION)}
-                  className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-2"
+                  className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-2 active:scale-95 transition-all"
                 >
-                  Confirmar <ArrowRight size={18} />
+                  Próximo <ArrowRight size={18} />
                 </button>
               </div>
             </div>
@@ -450,7 +463,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
         return (
           <div className="p-4 space-y-4 pb-24">
             <button onClick={() => setStep(SaleStep.ADD_PRODUCTS)} className="text-indigo-600 flex items-center gap-1 font-black text-xs uppercase bg-indigo-50 px-4 py-2 rounded-full">
-              <ChevronLeft size={16} /> Voltar
+              <ChevronLeft size={16} /> Voltar aos Itens
             </button>
             
             <div className="bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm space-y-6">
@@ -462,7 +475,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 </div>
               </div>
 
-              {/* TIPO DE ENTREGA */}
               <div className="space-y-4">
                 <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Modalidade</div>
                 <div className="flex gap-2">
@@ -517,16 +529,10 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                         onChange={(e) => setDeliveryPhone(e.target.value)}
                       />
                     </div>
-                    {(!deliveryDate || !deliveryAddress || !deliveryPhone) && (
-                      <p className="text-[9px] font-bold text-red-500 flex items-center gap-1 mt-1">
-                        <AlertTriangle size={10} /> Preencha todos os campos obrigatórios para entrega.
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
 
-              {/* FORMA DE PAGAMENTO */}
               <div className="pt-2 space-y-4">
                 <div className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Pagamento</div>
                 <div className="grid grid-cols-3 gap-2">
@@ -542,7 +548,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                 </div>
               </div>
 
-              {/* DESCONTO DINÂMICO PARA PIX/DINHEIRO */}
               <div className={`p-4 rounded-3xl border transition-all duration-300 space-y-3 ${
                 (paymentMethod === 'pix' || paymentMethod === 'dinheiro') 
                 ? 'bg-green-50 border-green-200' 
@@ -557,9 +562,6 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                       { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') ? 'Desconto PIX/Dinheiro (%)' : 'Desconto (%)' }
                     </span>
                   </div>
-                  { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') && (
-                    <span className="bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase">Incentivo Ativo</span>
-                  )}
                 </div>
                 
                 <div className="flex gap-2">
@@ -573,33 +575,16 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 font-black">%</div>
                   </div>
-                  
-                  { (paymentMethod === 'pix' || paymentMethod === 'dinheiro') && (
-                    <div className="flex gap-1">
-                      {[5, 10].map(val => (
-                        <button 
-                          key={val}
-                          onClick={() => setDiscountPercent(val)}
-                          className={`w-12 h-12 rounded-2xl font-black text-xs transition-all ${
-                            discountPercent === val ? 'bg-green-600 text-white' : 'bg-white text-green-600 border border-green-100'
-                          }`}
-                        >
-                          {val}%
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {hasDiscountRestrictions && (
                   <div className="flex items-start gap-2 bg-white/50 p-2 rounded-xl border border-green-200/50">
                     <Info size={12} className="text-green-700 mt-0.5 shrink-0" />
-                    <p className="text-[8px] font-bold text-green-800 leading-tight uppercase">O desconto total pode variar pois alguns itens possuem limites individuais configurados no estoque.</p>
+                    <p className="text-[8px] font-bold text-green-800 leading-tight uppercase">Alguns itens possuem limites de desconto.</p>
                   </div>
                 )}
               </div>
 
-              {/* TOTAIS */}
               <div className="pt-4 border-t-2 border-dashed border-gray-100 space-y-2">
                 <div className="flex justify-between items-center text-gray-400">
                   <span className="text-[10px] font-black uppercase">Subtotal Bruto</span>
@@ -609,7 +594,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
                   <div className="flex justify-between items-center text-green-600 animate-in fade-in slide-in-from-right-2">
                     <div className="flex items-center gap-1">
                       <TrendingDown size={14} />
-                      <span className="text-[10px] font-black uppercase">Desconto aplicado ({discountPercent}%)</span>
+                      <span className="text-[10px] font-black uppercase">Desconto aplicado</span>
                     </div>
                     <span className="font-bold">- R$ {discountAmount.toFixed(2)}</span>
                   </div>
@@ -656,7 +641,7 @@ const NewSale: React.FC<NewSaleProps> = ({ products, customers, conversionData, 
               <p className="text-gray-500 font-medium">O registro foi salvo com sucesso.</p>
             </div>
             {lastId && <Receipt saleId={lastId} isBudget={isBudgetMode} initialType={isDelivery ? 'delivery' : 'fiscal'} />}
-            <button onClick={isBudgetMode ? onBudgetComplete : onComplete} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest">Voltar ao Início</button>
+            <button onClick={isBudgetMode ? onBudgetComplete : onComplete} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest active:scale-95 transition-all">Voltar ao Início</button>
           </div>
         );
     }

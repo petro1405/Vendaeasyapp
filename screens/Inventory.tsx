@@ -14,7 +14,7 @@ interface InventoryProps {
 const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<Product['id'] | null>(null);
-  const [tempStock, setTempStock] = useState(0);
+  const [tempStock, setTempStock] = useState<number>(0);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -82,7 +82,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       category: formCategory,
       price: parseFloat(formPrice),
       costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
-      stockQuantity: parseInt(formInitialStock),
+      stockQuantity: parseFloat(formInitialStock),
       allowDiscount: formAllowDiscount,
       maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
@@ -100,7 +100,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       category: formCategory,
       price: parseFloat(formPrice),
       costPrice: formCostPrice ? parseFloat(formCostPrice) : undefined,
-      stockQuantity: parseInt(formInitialStock),
+      stockQuantity: parseFloat(formInitialStock),
       allowDiscount: formAllowDiscount,
       maxDiscountPercent: formAllowDiscount ? parseFloat(formMaxDiscountPercent) : 0
     });
@@ -208,7 +208,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-              <div className="text-[10px] font-black text-gray-400 uppercase">Quantidade</div>
+              <div className="text-[10px] font-black text-gray-400 uppercase">Quantidade / Medida</div>
               
               {editingId === product.id ? (
                 <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-2xl">
@@ -220,9 +220,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                   </button>
                   <input 
                     type="number" 
-                    className="w-12 text-center font-black text-lg bg-transparent text-indigo-700 outline-none"
+                    step="0.01"
+                    className="w-16 text-center font-black text-lg bg-transparent text-indigo-700 outline-none border-b-2 border-indigo-200"
                     value={tempStock}
-                    onChange={(e) => setTempStock(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setTempStock(parseFloat(e.target.value) || 0)}
                   />
                   <button 
                     onClick={() => setTempStock(tempStock + 1)}
@@ -240,7 +241,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
               ) : (
                 <div className="flex items-center gap-3">
                   <span className={`text-base font-black ${product.stockQuantity < 5 ? 'text-red-500' : 'text-gray-800'}`}>
-                    {product.stockQuantity} un
+                    {product.stockQuantity.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </span>
                   {isAdmin && (
                     <button 
@@ -353,13 +354,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque {isEditModalOpen ? 'Atual' : 'Inicial'}</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque / Metragem {isEditModalOpen ? 'Atual' : 'Inicial'}</label>
                 <div className="relative">
                   <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                   <input 
                     type="number"
+                    step="0.01"
                     required
-                    placeholder="Ex: 50"
+                    placeholder="Ex: 50,50"
                     className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     value={formInitialStock}
                     onChange={(e) => setFormInitialStock(e.target.value)}

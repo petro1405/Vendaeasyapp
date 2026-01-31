@@ -31,10 +31,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         const result = await db.requestPasswordReset(sanitizedUsername);
         if (result.success) {
           setSuccess(result.message);
+          // Ocultar modal após sucesso
           setTimeout(() => {
             setIsResetMode(false);
             setSuccess('');
-          }, 3000);
+          }, 4000);
         } else {
           setError(result.message);
         }
@@ -72,6 +73,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
       }
     } catch (err: any) {
+      console.error("Login Error:", err);
       if (err.code === 'auth/invalid-email') {
         setError('O nome de usuário inserido é inválido.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -155,15 +157,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
 
             {error && (
-              <div className="text-red-500 bg-red-50 p-3 rounded-xl text-xs font-bold flex items-start gap-2 animate-in slide-in-from-top-1">
+              <div className="text-red-500 bg-red-50 p-4 rounded-xl text-xs font-bold flex items-start gap-2 animate-in slide-in-from-top-1 border border-red-100">
                 <AlertCircle className="shrink-0 mt-0.5" size={14}/>
-                <span>{error}</span>
+                <span className="leading-tight">{error}</span>
               </div>
             )}
             {success && (
-              <div className="text-green-600 bg-green-50 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 size={14}/>
-                <span>{success}</span>
+              <div className="text-green-600 bg-green-50 p-4 rounded-xl text-xs font-bold flex items-center gap-2 border border-green-100">
+                <CheckCircle2 size={16} className="shrink-0"/>
+                <span className="leading-tight">{success}</span>
               </div>
             )}
 
@@ -207,10 +209,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
           )}
           
-          {isResetMode && (
-            <div className="bg-amber-50 p-3 rounded-2xl border border-amber-100">
+          {isResetMode && !success && (
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
               <p className="text-[9px] text-amber-700 font-bold leading-tight uppercase">
-                A solicitação será enviada a um administrador. Após autorização, você poderá criar uma nova senha.
+                Nota: O administrador precisa autorizar o reset no painel de Ajustes. Se você receber erro de permissão, peça ao seu gerente para liberar o acesso público no Firebase.
               </p>
             </div>
           )}
