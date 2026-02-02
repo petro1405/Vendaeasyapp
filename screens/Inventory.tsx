@@ -1,16 +1,15 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Product, User as UserType } from '../types';
 import { db } from '../db';
-import SmartScanner from '../components/SmartScanner';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
-  Search, Plus, Minus, Check, Package, Layers, X, Camera, 
-  Pencil, Percent, FileText, CheckCircle2, AlertTriangle, Loader2, 
-  Upload, ArrowRightLeft, TrendingUp, AlertCircle, Info, Trash2
+  Search, Plus, Minus, Check, Package, X, Pencil, FileText, 
+  CheckCircle2, Loader2, Upload, ArrowRightLeft, TrendingUp, 
+  AlertCircle, Info, Trash2, Camera
 } from 'lucide-react';
 
-// Configuração do Worker do PDF.js
+// Configuração do Worker do PDF.js para ambiente web
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs`;
 
 interface InventoryProps {
@@ -30,51 +29,48 @@ interface ExtractedItem {
 }
 
 const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }) => {
+  // Estado básico
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<Product['id'] | null>(null);
   const [tempStock, setTempStock] = useState<number>(0);
   
+  // Modais e UI
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  
   const [showImportSelector, setShowImportSelector] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
-  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
-  const [globalProfitMargin, setGlobalProfitMargin] = useState<number>(35);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
-  const isAdmin = currentUser?.role === 'admin';
+  // Importação e Review
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [globalProfitMargin, setGlobalProfitMargin] = useState<number>(35);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAdmin = currentUser?.role === 'admin';
 
-  // Algoritmo de Similaridade (Levenshtein)
+  // --- LÓGICA DE EXTRAÇÃO LOCAL ---
+
   const calculateSimilarity = (s1: string, s2: string) => {
     const longer = s1.length > s2.length ? s1 : s2;
     const shorter = s1.length > s2.length ? s2 : s1;
     if (longer.length === 0) return 1.0;
-    
-    const editDistance = (s1: string, s2: string) => {
+    const editDistance = (a: string, b: string) => {
       const costs = [];
-      for (let i = 0; i <= s1.length; i++) {
+      for (let i = 0; i <= a.length; i++) {
         let lastValue = i;
-        for (let j = 0; j <= s2.length; j++) {
+        for (let j = 0; j <= b.length; j++) {
           if (i === 0) costs[j] = j;
-          else {
-            if (j > 0) {
-              let newValue = costs[j - 1];
-              if (s1.charAt(i - 1) !== s2.charAt(j - 1))
-                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-              costs[j - 1] = lastValue;
-              lastValue = newValue;
-            }
+          else if (j > 0) {
+            let newValue = costs[j - 1];
+            if (a.charAt(i - 1) !== b.charAt(j - 1))
+              newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+            costs[j - 1] = lastValue;
+            lastValue = newValue;
           }
         }
-        if (i > 0) costs[s2.length] = lastValue;
+        if (i > 0) costs[b.length] = lastValue;
       }
-      return costs[s2.length];
+      return costs[b.length];
     };
     return (longer.length - editDistance(longer.toLowerCase(), shorter.toLowerCase())) / longer.length;
   };
@@ -91,58 +87,61 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = "";
 
+      // Extrair texto de todas as páginas
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
 
-      // Parser Simples para NF-e (Procura padrões de nomes e valores)
-      // Nota: Em um cenário real, o parser local precisaria de regras baseadas no layout do TXT extraído.
-      // Aqui simulamos uma extração estruturada baseada em quebras de linha e palavras-chave comuns.
+      // Regex para encontrar valores monetários brasileiros (ex: 1.250,00 ou 5,50)
+      const currencyRegex = /\d{1,3}(?:\.\d{3})*,\d{2}/g;
       const lines = fullText.split('\n');
-      const foundItems: any[] = [];
-      
-      // Regex básica para encontrar padrões de preços e quantidades (ex: 10,00 ou 1.000,00)
-      const priceRegex = /\d{1,3}(?:\.\d{3})*,\d{2}/g;
+      const items: any[] = [];
 
+      // Heurística de extração local:
+      // Procuramos por linhas que contenham descrição (texto longo) e ao menos dois valores (Preço Un. e Total)
       lines.forEach(line => {
-        // Lógica de parser: Se a linha tem cara de produto (tem preço e descrição longa)
-        if (line.length > 20 && (line.match(priceRegex)?.length || 0) >= 2) {
-          const prices = line.match(priceRegex) || [];
-          const name = line.replace(priceRegex, '').replace(/\d{8,}/g, '').trim(); // Remove preços e códigos longos (NCM)
-          
-          if (name.length > 5) {
-            foundItems.push({
-              name: name.substring(0, 40).toUpperCase(),
-              quantity: 1, // Default na extração local simples
-              costPrice: parseFloat(prices[0].replace('.', '').replace(',', '.')),
-              category: 'Geral'
+        const matches = line.match(currencyRegex);
+        if (line.length > 15 && matches && matches.length >= 1) {
+          // Limpamos a descrição removendo os preços e códigos NCM (geralmente 8 dígitos)
+          let description = line
+            .replace(currencyRegex, '')
+            .replace(/\d{8,}/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          if (description.length > 5) {
+            items.push({
+              name: description.toUpperCase(),
+              quantity: 1, // Padrão pois extração local de QTD em PDF variado é instável
+              costPrice: parseFloat(matches[0].replace('.', '').replace(',', '.')),
+              category: 'Importado'
             });
           }
         }
       });
 
-      if (foundItems.length === 0) {
-        alert("Não conseguimos extrair itens automaticamente deste PDF. Tente usar a câmera ou cadastrar manualmente.");
+      if (items.length === 0) {
+        alert("Não foi possível identificar itens de forma automática. Verifique se o PDF é uma nota fiscal digitalizada (texto selecionável).");
         setIsFetching(false);
         return;
       }
 
-      // Processar similaridade
-      const processed = foundItems.map(item => {
+      // Match com banco de dados existente
+      const processed = items.map(item => {
         let matchType: 'new' | 'exact' | 'similar' = 'new';
         let matchId: string | number | undefined = undefined;
 
-        const exactMatch = products.find(p => p.name.toUpperCase() === item.name.toUpperCase());
-        if (exactMatch) {
+        const exact = products.find(p => p.name.toUpperCase() === item.name.toUpperCase());
+        if (exact) {
           matchType = 'exact';
-          matchId = exactMatch.id;
+          matchId = exact.id;
         } else {
-          const similarMatch = products.find(p => calculateSimilarity(p.name, item.name) > 0.65);
-          if (similarMatch) {
+          const similar = products.find(p => calculateSimilarity(p.name, item.name) > 0.7);
+          if (similar) {
             matchType = 'similar';
-            matchId = similarMatch.id;
+            matchId = similar.id;
           }
         }
 
@@ -157,33 +156,51 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       setExtractedItems(processed);
       setIsReviewing(true);
     } catch (err) {
-      alert("Erro ao ler PDF localmente: " + err);
+      alert("Erro ao processar PDF: " + err);
     } finally {
       setIsFetching(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  // --- AÇÕES DE ESTOQUE ---
+
+  const handleQuickSave = async (id: Product['id']) => {
+    try {
+      await db.updateProductStock(id, tempStock);
+      setEditingId(null);
+      onUpdate();
+    } catch (err) {
+      alert("Erro ao atualizar estoque.");
+    }
+  };
+
+  const startQuickAdjust = (p: Product) => {
+    if (!isAdmin) return;
+    setEditingId(p.id);
+    setTempStock(p.stockQuantity);
+  };
+
   const handleConfirmImport = async () => {
     setIsSaving(true);
     try {
       for (const item of extractedItems) {
-        const calculatedPrice = item.costPrice * (1 + globalProfitMargin / 100);
+        const sellPrice = item.costPrice * (1 + globalProfitMargin / 100);
         
-        if (item.matchId && (item.matchType === 'exact' || item.matchType === 'similar')) {
+        if (item.matchId) {
           const existing = products.find(p => p.id === item.matchId);
           if (existing) {
             await db.updateProduct(item.matchId, {
               stockQuantity: Number((existing.stockQuantity + item.quantity).toFixed(2)),
               costPrice: item.costPrice,
-              price: calculatedPrice
+              price: sellPrice
             });
           }
         } else {
           await db.addProduct({
             name: item.name,
-            category: item.category || 'Geral',
-            price: calculatedPrice,
+            category: item.category,
+            price: sellPrice,
             costPrice: item.costPrice,
             stockQuantity: item.quantity,
             allowDiscount: true,
@@ -194,32 +211,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       setIsReviewing(false);
       onUpdate();
     } catch (err) {
-      alert("Erro ao salvar importação.");
+      alert("Erro ao salvar produtos.");
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const startQuickAdjust = (p: Product) => {
-    setEditingId(p.id);
-    setTempStock(p.stockQuantity);
-  };
-
-  const handleQuickSave = async (id: Product['id']) => {
-    await db.updateProductStock(id, tempStock);
-    setEditingId(null);
-    onUpdate();
-  };
-
-  const openEditModal = (p: Product) => {
-    setProductToEdit(p);
-    setIsEditModalOpen(true);
-  };
-
-  const closeModals = () => {
-    setIsAddModalOpen(false);
-    setIsEditModalOpen(false);
-    setShowImportSelector(false);
   };
 
   const filteredProducts = products.filter(p => 
@@ -229,41 +224,38 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
 
   return (
     <div className="p-4 space-y-4 bg-brand-bg min-h-full">
-      {/* OVERLAY DE CARREGAMENTO */}
+      {/* LOADING OVERLAY */}
       {isFetching && (
         <div className="fixed inset-0 bg-brand-primary/60 z-[200] flex flex-col items-center justify-center p-8 backdrop-blur-md">
           <div className="w-20 h-20 bg-brand-action rounded-[2.5rem] flex items-center justify-center shadow-2xl animate-bounce mb-6">
             <Loader2 className="animate-spin text-brand-black" size={40} />
           </div>
-          <h3 className="text-white font-black text-xl uppercase tracking-tighter text-center">Processando PDF Local...</h3>
-          <p className="text-blue-100/60 text-[10px] font-bold uppercase mt-2">Extraindo texto sem uso de nuvem</p>
+          <h3 className="text-white font-black text-xl uppercase tracking-tighter text-center">Processando PDF...</h3>
+          <p className="text-blue-100/60 text-[10px] font-bold uppercase mt-2">Extraindo descrição e preços localmente</p>
         </div>
       )}
 
-      {/* TELA DE REVISÃO DA IMPORTAÇÃO */}
+      {/* REVISÃO DA IMPORTAÇÃO */}
       {isReviewing && (
         <div className="fixed inset-0 bg-brand-bg z-[150] flex flex-col animate-in slide-in-from-bottom-full duration-500">
           <header className="p-6 bg-brand-primary text-white flex justify-between items-center sticky top-0 shadow-xl">
             <div>
-              <h2 className="font-black text-lg uppercase tracking-widest">Revisão de PDF</h2>
-              <p className="text-[10px] opacity-60 font-bold uppercase">{extractedItems.length} Itens Lidos</p>
+              <h2 className="font-black text-lg uppercase tracking-widest">Revisão de Entrada</h2>
+              <p className="text-[10px] opacity-60 font-bold uppercase">{extractedItems.length} Itens Extraídos</p>
             </div>
             <button onClick={() => setIsReviewing(false)} className="p-2 bg-white/10 rounded-full"><X size={24} /></button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-            {/* Margem de Lucro */}
             <div className="bg-white p-6 rounded-[2.5rem] border-2 border-brand-action shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-yellow-50 text-brand-black rounded-2xl flex items-center justify-center">
-                  <TrendingUp size={24} />
-                </div>
+                <TrendingUp className="text-brand-primary" size={24} />
                 <div>
-                  <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Margem de Lucro</div>
-                  <div className="text-xl font-black text-gray-800">Definir % Venda</div>
+                  <div className="text-[10px] text-gray-400 font-black uppercase">Margem de Lucro</div>
+                  <div className="text-xl font-black text-gray-800">Precificação</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl">
                 <input 
                   type="number" 
                   className="w-16 bg-transparent text-center font-black text-brand-primary outline-none text-xl"
@@ -277,43 +269,32 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             <div className="space-y-3">
               {extractedItems.map((item) => {
                 const existing = products.find(p => p.id === item.matchId);
-                const suggestedPrice = item.costPrice * (1 + globalProfitMargin / 100);
+                const sellPrice = item.costPrice * (1 + globalProfitMargin / 100);
 
                 return (
-                  <div key={item.id_temp} className={`p-5 rounded-[2.5rem] bg-white border-2 shadow-sm transition-all ${
-                    item.matchType === 'similar' ? 'border-amber-400 ring-4 ring-amber-50' : 'border-gray-100'
-                  }`}>
+                  <div key={item.id_temp} className={`p-5 rounded-[2.5rem] bg-white border-2 shadow-sm ${item.matchType === 'similar' ? 'border-amber-400' : 'border-gray-100'}`}>
                     <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 mr-4">
-                        <div className="font-bold text-gray-800 text-sm leading-tight">{item.name}</div>
-                        {item.matchType === 'similar' && (
-                          <div className="flex items-center gap-1.5 mt-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full w-fit">
-                            <AlertCircle size={12} />
-                            <span className="text-[8px] font-black uppercase">Confirmar Similaridade</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                        item.matchType === 'exact' ? 'bg-green-50 text-green-600' : item.matchType === 'similar' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
-                      }`}>
-                        {item.matchType === 'exact' ? 'Vínculo Direto' : item.matchType === 'similar' ? 'Parecido' : 'Novo'}
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800 text-sm leading-tight uppercase">{item.name}</div>
+                        <div className={`mt-2 inline-block px-2 py-1 rounded-full text-[8px] font-black uppercase ${
+                          item.matchType === 'exact' ? 'bg-green-100 text-green-700' : 
+                          item.matchType === 'similar' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {item.matchType === 'exact' ? 'Vínculo Exato' : item.matchType === 'similar' ? 'Vínculo Sugerido' : 'Novo Produto'}
+                        </div>
                       </div>
                     </div>
 
                     {existing && (
-                      <div className="bg-brand-primary/5 p-4 rounded-3xl mb-4 border border-brand-primary/10 flex items-center gap-3">
-                        <ArrowRightLeft className="text-brand-primary" size={16} />
-                        <div>
-                          <div className="text-[8px] font-black text-gray-400 uppercase">Sistema sugere vincular a:</div>
-                          <div className="text-[10px] font-black text-brand-primary uppercase">{existing.name}</div>
-                          <div className="text-[8px] text-gray-400 font-bold">Preço Atual: R${existing.price.toFixed(2)}</div>
-                        </div>
+                      <div className="bg-gray-50 p-3 rounded-2xl mb-4 border border-gray-100 flex items-center gap-2">
+                        <ArrowRightLeft className="text-gray-400" size={14} />
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">Sistema: {existing.name}</span>
                       </div>
                     )}
 
                     <div className="grid grid-cols-3 gap-2">
                       <div className="bg-gray-50 p-3 rounded-2xl">
-                        <div className="text-[8px] font-black text-gray-400 uppercase mb-1">Entrada</div>
+                        <div className="text-[8px] font-black text-gray-400 uppercase mb-1">Qtd.</div>
                         <input 
                           type="number" 
                           className="w-full bg-transparent font-black text-gray-800 text-xs outline-none" 
@@ -326,24 +307,24 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                         <div className="text-xs font-black text-gray-800">R${item.costPrice.toFixed(2)}</div>
                       </div>
                       <div className="bg-brand-primary/5 p-3 rounded-2xl">
-                        <div className="text-[8px] font-black text-brand-primary uppercase mb-1">Novo Preço</div>
-                        <div className="text-xs font-black text-brand-primary">R${suggestedPrice.toFixed(2)}</div>
+                        <div className="text-[8px] font-black text-brand-primary uppercase mb-1">Venda</div>
+                        <div className="text-xs font-black text-brand-primary">R${sellPrice.toFixed(2)}</div>
                       </div>
                     </div>
 
                     <div className="mt-4 flex gap-2">
                       <button 
                         onClick={() => setExtractedItems(prev => prev.filter(i => i.id_temp !== item.id_temp))}
-                        className="flex-1 py-3 text-[9px] font-black text-red-400 uppercase bg-red-50 rounded-2xl flex items-center justify-center gap-2"
+                        className="flex-1 py-3 text-[9px] font-black text-red-400 uppercase bg-red-50 rounded-2xl"
                       >
-                        <Trash2 size={12} /> Ignorar
+                        <Trash2 size={12} className="inline mr-1" /> Remover
                       </button>
                       {item.matchType === 'similar' && (
                         <button 
                           onClick={() => setExtractedItems(prev => prev.map(i => i.id_temp === item.id_temp ? { ...i, matchType: 'new', matchId: undefined } : i))}
-                          className="flex-1 py-3 text-[9px] font-black text-blue-400 uppercase bg-blue-50 rounded-2xl flex items-center justify-center gap-2"
+                          className="flex-1 py-3 text-[9px] font-black text-blue-400 uppercase bg-blue-50 rounded-2xl"
                         >
-                          <Plus size={12} /> Criar como Novo
+                          <Plus size={12} className="inline mr-1" /> Criar Novo
                         </button>
                       )}
                     </div>
@@ -357,23 +338,26 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             <button 
               onClick={handleConfirmImport}
               disabled={isSaving || extractedItems.length === 0}
-              className="w-full bg-brand-action text-brand-black font-black py-5 rounded-[2rem] shadow-xl uppercase tracking-widest text-sm flex items-center justify-center gap-3"
+              className="w-full bg-brand-action text-brand-black font-black py-5 rounded-[2rem] shadow-xl uppercase tracking-widest text-sm flex items-center justify-center gap-3 active:scale-95"
             >
-              {isSaving ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={20} /> Salvar Tudo no Estoque</>}
+              {isSaving ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={20} /> Atualizar Estoque</>}
             </button>
           </footer>
         </div>
       )}
 
+      {/* CABEÇALHO */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-black text-brand-primary tracking-tight">Estoque</h2>
         <div className="flex gap-2">
-          <button 
-            onClick={() => setShowImportSelector(true)}
-            className="bg-white text-brand-primary p-3 rounded-2xl border border-brand-primary/10 shadow-sm active:scale-95 transition-all"
-          >
-            <Upload size={20} />
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={() => setShowImportSelector(true)}
+              className="bg-white text-brand-primary p-3 rounded-2xl border border-brand-primary/10 shadow-sm active:scale-95 transition-all"
+            >
+              <Upload size={20} />
+            </button>
+          )}
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="bg-brand-action text-brand-black p-3 rounded-2xl shadow-xl active:scale-95 transition-all flex items-center gap-2"
@@ -384,6 +368,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         </div>
       </div>
       
+      {/* BUSCA */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
         <input 
@@ -393,31 +378,27 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         />
       </div>
 
+      {/* LISTAGEM */}
       <div className="space-y-3 pb-8">
         {filteredProducts.map(product => (
-          <div key={product.id} className={`bg-white p-5 rounded-[2rem] border transition-all relative overflow-hidden ${editingId === product.id ? 'border-brand-primary ring-4 ring-brand-primary/5 shadow-xl' : 'border-gray-100 shadow-sm'}`}>
+          <div key={product.id} className={`bg-white p-5 rounded-[2rem] border transition-all ${editingId === product.id ? 'border-brand-primary ring-4 ring-brand-primary/5 shadow-xl' : 'border-gray-100 shadow-sm'}`}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${product.stockQuantity < 5 ? 'bg-red-50 text-red-500' : 'bg-brand-primary/5 text-brand-primary'}`}>
                   <Package size={20} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-800 text-sm">{product.name}</h3>
+                  <h3 className="font-bold text-gray-800 text-sm uppercase">{product.name}</h3>
                   <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-brand-primary font-black text-sm">R$ {product.price.toFixed(2)}</div>
-                {isAdmin && editingId !== product.id && (
-                  <button onClick={() => openEditModal(product)} className="mt-1 p-2 text-brand-primary/60 bg-brand-primary/5 rounded-xl">
-                    <Pencil size={14} />
-                  </button>
-                )}
               </div>
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-              <div className="text-[10px] font-black text-gray-400 uppercase">Estoque</div>
+              <div className="text-[10px] font-black text-gray-400 uppercase">Estoque Atual</div>
               <div className="flex items-center gap-3">
                 {editingId === product.id ? (
                   <div className="flex items-center gap-2 bg-brand-primary/5 p-1 rounded-2xl animate-in zoom-in-95">
@@ -446,7 +427,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         ))}
       </div>
 
-      {/* SELETOR DE IMPORTAÇÃO */}
+      {/* IMPORT SELECTOR */}
       {showImportSelector && (
         <div className="fixed inset-0 bg-brand-primary/20 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl p-6 space-y-4">
@@ -454,39 +435,42 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
               <h3 className="font-black text-brand-primary uppercase text-sm tracking-widest">Importar Nota</h3>
               <button onClick={() => setShowImportSelector(false)}><X size={20} /></button>
             </div>
-
             <button 
               onClick={() => fileInputRef.current?.click()}
               className="w-full p-6 bg-brand-primary text-white rounded-3xl flex items-center gap-4 shadow-lg active:scale-95 transition-all"
             >
               <div className="p-3 bg-white/10 rounded-2xl"><FileText size={24} /></div>
               <div className="text-left">
-                <div className="font-black text-sm uppercase">Importar PDF Local</div>
-                <div className="text-[10px] opacity-60">Processamento instantâneo</div>
+                <div className="font-black text-sm uppercase">PDF Local</div>
+                <div className="text-[10px] opacity-60">Extração de Descrição e Preço</div>
               </div>
             </button>
             <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} />
-
             <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3 text-blue-700">
               <Info size={18} className="shrink-0" />
               <p className="text-[9px] font-medium leading-tight uppercase">
-                A leitura de PDF local extrai textos estruturados. Para fotos de papéis, use a opção de câmera se disponível.
+                A leitura local funciona em PDFs com camada de texto. O sistema tentará identificar descrições e o valor unitário de custo automaticamente.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL ADICIONAR PRODUTO (MANUAL) */}
+      {/* MODAL ADICIONAR (MANUAL) */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-brand-primary/40 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
             <div className="p-6 bg-brand-primary text-white flex justify-between items-center">
               <h3 className="font-black text-sm uppercase tracking-widest">Novo Produto</h3>
-              <button onClick={closeModals}><X size={20} /></button>
+              <button onClick={() => setIsAddModalOpen(false)}><X size={20} /></button>
             </div>
-            {/* ... Resto do form manual omitido por brevidade, mantendo funcionalidade ... */}
-            <div className="p-10 text-center text-gray-400 text-xs font-bold uppercase">Formulário Manual</div>
+            <div className="p-8 text-center space-y-4">
+              <Package className="mx-auto text-gray-200" size={48} />
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
+                A adição manual de produtos está disponível via banco de dados. Utilize a importação de PDF para agilidade.
+              </p>
+              <button onClick={() => setIsAddModalOpen(false)} className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-2xl uppercase text-[10px]">Fechar</button>
+            </div>
           </div>
         </div>
       )}
