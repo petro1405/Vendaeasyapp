@@ -6,7 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { 
   Search, Plus, Minus, Check, Package, X, Pencil, FileText, 
   CheckCircle2, Loader2, Upload, ArrowRightLeft, TrendingUp, 
-  AlertCircle, Info, Trash2, Camera
+  AlertCircle, Info, Trash2, Camera, Percent, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 // Configuração do Worker do PDF.js para ambiente web
@@ -36,10 +36,21 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   
   // Modais e UI
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showImportSelector, setShowImportSelector] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Estados do Formulário Manual
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formCategory, setFormCategory] = useState('');
+  const [formPrice, setFormPrice] = useState('');
+  const [formCostPrice, setFormCostPrice] = useState('');
+  const [formInitialStock, setFormInitialStock] = useState('');
+  const [formAllowDiscount, setFormAllowDiscount] = useState(true);
+  const [formMaxDiscount, setFormMaxDiscount] = useState('10');
 
   // Importação e Review
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
@@ -87,24 +98,19 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = "";
 
-      // Extrair texto de todas as páginas
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
 
-      // Regex para encontrar valores monetários brasileiros (ex: 1.250,00 ou 5,50)
       const currencyRegex = /\d{1,3}(?:\.\d{3})*,\d{2}/g;
       const lines = fullText.split('\n');
       const items: any[] = [];
 
-      // Heurística de extração local:
-      // Procuramos por linhas que contenham descrição (texto longo) e ao menos dois valores (Preço Un. e Total)
       lines.forEach(line => {
         const matches = line.match(currencyRegex);
         if (line.length > 15 && matches && matches.length >= 1) {
-          // Limpamos a descrição removendo os preços e códigos NCM (geralmente 8 dígitos)
           let description = line
             .replace(currencyRegex, '')
             .replace(/\d{8,}/g, '')
@@ -114,7 +120,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
           if (description.length > 5) {
             items.push({
               name: description.toUpperCase(),
-              quantity: 1, // Padrão pois extração local de QTD em PDF variado é instável
+              quantity: 1,
               costPrice: parseFloat(matches[0].replace('.', '').replace(',', '.')),
               category: 'Importado'
             });
@@ -123,12 +129,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       });
 
       if (items.length === 0) {
-        alert("Não foi possível identificar itens de forma automática. Verifique se o PDF é uma nota fiscal digitalizada (texto selecionável).");
+        alert("Não foi possível identificar itens de forma automática.");
         setIsFetching(false);
         return;
       }
 
-      // Match com banco de dados existente
       const processed = items.map(item => {
         let matchType: 'new' | 'exact' | 'similar' = 'new';
         let matchId: string | number | undefined = undefined;
@@ -215,6 +220,66 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // --- LÓGICA DO FORMULÁRIO MANUAL ---
+
+  const openAddModal = () => {
+    setProductToEdit(null);
+    setFormName('');
+    setFormCategory('');
+    setFormPrice('');
+    setFormCostPrice('');
+    setFormInitialStock('');
+    setFormAllowDiscount(true);
+    setFormMaxDiscount('10');
+    setIsAddModalOpen(true);
+  };
+
+  const openEditModal = (p: Product) => {
+    if (!isAdmin) return;
+    setProductToEdit(p);
+    setFormName(p.name);
+    setFormCategory(p.category);
+    setFormPrice(p.price.toString());
+    setFormCostPrice(p.costPrice?.toString() || '');
+    setFormInitialStock(p.stockQuantity.toString());
+    setFormAllowDiscount(p.allowDiscount ?? true);
+    setFormMaxDiscount((p.maxDiscountPercent ?? 10).toString());
+    setIsEditModalOpen(true);
+  };
+
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const data = {
+      name: formName,
+      category: formCategory || 'Geral',
+      price: parseFloat(formPrice),
+      costPrice: parseFloat(formCostPrice) || 0,
+      stockQuantity: parseFloat(formInitialStock) || 0,
+      allowDiscount: formAllowDiscount,
+      maxDiscountPercent: parseFloat(formMaxDiscount) || 0
+    };
+
+    try {
+      if (isEditModalOpen && productToEdit) {
+        await db.updateProduct(productToEdit.id, data);
+      } else {
+        await db.addProduct(data);
+      }
+      closeModals();
+      onUpdate();
+    } catch (err) {
+      alert("Erro ao salvar produto.");
+    }
+  };
+
+  const closeModals = () => {
+    setIsAddModalOpen(false);
+    setIsEditModalOpen(false);
+    setShowImportSelector(false);
   };
 
   const filteredProducts = products.filter(p => 
@@ -338,7 +403,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             <button 
               onClick={handleConfirmImport}
               disabled={isSaving || extractedItems.length === 0}
-              className="w-full bg-brand-action text-brand-black font-black py-5 rounded-[2rem] shadow-xl uppercase tracking-widest text-sm flex items-center justify-center gap-3 active:scale-95"
+              className="w-full bg-brand-action text-brand-black font-black py-5 rounded-[2rem] shadow-xl uppercase tracking-widest text-sm flex items-center justify-center gap-3 active:scale-95 transition-all"
             >
               {isSaving ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={20} /> Atualizar Estoque</>}
             </button>
@@ -359,7 +424,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
             </button>
           )}
           <button 
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={openAddModal}
             className="bg-brand-action text-brand-black p-3 rounded-2xl shadow-xl active:scale-95 transition-all flex items-center gap-2"
           >
             <Plus size={20} />
@@ -387,13 +452,18 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${product.stockQuantity < 5 ? 'bg-red-50 text-red-500' : 'bg-brand-primary/5 text-brand-primary'}`}>
                   <Package size={20} />
                 </div>
-                <div>
+                <div onClick={() => openEditModal(product)} className="cursor-pointer">
                   <h3 className="font-bold text-gray-800 text-sm uppercase">{product.name}</h3>
                   <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-brand-primary font-black text-sm">R$ {product.price.toFixed(2)}</div>
+                {isAdmin && editingId !== product.id && (
+                  <button onClick={() => openEditModal(product)} className="mt-1 p-2 text-brand-primary/60 bg-brand-primary/5 rounded-xl">
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
             </div>
             
@@ -456,21 +526,114 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
         </div>
       )}
 
-      {/* MODAL ADICIONAR (MANUAL) */}
-      {isAddModalOpen && (
+      {/* MODAL ADICIONAR / EDITAR (MANUAL) */}
+      {(isAddModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-brand-primary/40 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
             <div className="p-6 bg-brand-primary text-white flex justify-between items-center">
-              <h3 className="font-black text-sm uppercase tracking-widest">Novo Produto</h3>
-              <button onClick={() => setIsAddModalOpen(false)}><X size={20} /></button>
+              <h3 className="font-black text-sm uppercase tracking-widest">{isEditModalOpen ? 'Editar Produto' : 'Novo Produto'}</h3>
+              <button onClick={closeModals}><X size={20} /></button>
             </div>
-            <div className="p-8 text-center space-y-4">
-              <Package className="mx-auto text-gray-200" size={48} />
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
-                A adição manual de produtos está disponível via banco de dados. Utilize a importação de PDF para agilidade.
-              </p>
-              <button onClick={() => setIsAddModalOpen(false)} className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-2xl uppercase text-[10px]">Fechar</button>
-            </div>
+            <form onSubmit={handleProductSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome do Produto</label>
+                <input 
+                  type="text" 
+                  required 
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                  value={formName} 
+                  onChange={(e) => setFormName(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Categoria</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Alvenaria, Elétrica"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                  value={formCategory} 
+                  onChange={(e) => setFormCategory(e.target.value)} 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Preço Venda</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                      value={formPrice} 
+                      onChange={(e) => setFormPrice(e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Preço Custo</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                      value={formCostPrice} 
+                      onChange={(e) => setFormCostPrice(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    required
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-black outline-none focus:ring-2 focus:ring-brand-primary" 
+                    value={formInitialStock} 
+                    onChange={(e) => setFormInitialStock(e.target.value)} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Desc. Máx (%)</label>
+                  <div className="relative">
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <input 
+                      type="number" 
+                      className="w-full pr-8 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                      value={formMaxDiscount} 
+                      onChange={(e) => setFormMaxDiscount(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-gray-800 uppercase">Permitir Desconto</span>
+                  <span className="text-[8px] text-gray-400 font-bold uppercase">Habilita negociação no PDV</span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setFormAllowDiscount(!formAllowDiscount)}
+                  className={`p-1 rounded-full transition-colors ${formAllowDiscount ? 'text-brand-primary' : 'text-gray-300'}`}
+                >
+                  {formAllowDiscount ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </button>
+              </div>
+
+              <button 
+                type="submit" 
+                className="w-full py-5 bg-brand-action text-brand-black font-black rounded-[2rem] uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all mt-4"
+              >
+                {isEditModalOpen ? 'Salvar Alterações' : 'Cadastrar Produto'}
+              </button>
+            </form>
           </div>
         </div>
       )}
