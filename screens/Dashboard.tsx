@@ -15,16 +15,19 @@ import {
   BarChart3,
   DollarSign,
   Users,
-  ArrowUpRight
+  ArrowUpRight,
+  Zap,
+  Plus
 } from 'lucide-react';
 
 interface DashboardProps {
   products: Product[];
   sales: Sale[];
   budgets: Budget[];
+  onNavigateToSale?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
+const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets, onNavigateToSale }) => {
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [initialType, setInitialType] = useState<ReceiptType>('fiscal');
   const [viewMode, setViewMode] = useState<'overview' | 'analytics'>('overview');
@@ -90,13 +93,13 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
         <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
           <button 
             onClick={() => setViewMode('overview')}
-            className={`p-2 rounded-xl transition-all ${viewMode === 'overview' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}
+            className={`p-2 rounded-xl transition-all ${viewMode === 'overview' ? 'bg-brand-primary text-white' : 'text-gray-400'}`}
           >
             <ShoppingBag size={18} />
           </button>
           <button 
             onClick={() => setViewMode('analytics')}
-            className={`p-2 rounded-xl transition-all ${viewMode === 'analytics' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}
+            className={`p-2 rounded-xl transition-all ${viewMode === 'analytics' ? 'bg-brand-primary text-white' : 'text-gray-400'}`}
           >
             <BarChart3 size={18} />
           </button>
@@ -105,7 +108,26 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
 
       {viewMode === 'overview' ? (
         <>
-          <div className="bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+          {/* Botão de Venda Rápida */}
+          <button 
+            onClick={onNavigateToSale}
+            className="w-full bg-brand-action text-brand-black p-5 rounded-[2.5rem] shadow-xl shadow-brand-action/20 flex items-center justify-between group active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-brand-black/10 rounded-3xl flex items-center justify-center">
+                <Zap size={24} className="fill-brand-black" />
+              </div>
+              <div className="text-left">
+                <div className="font-black text-lg uppercase tracking-tight">Venda Rápida</div>
+                <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Iniciar novo pedido agora</div>
+              </div>
+            </div>
+            <div className="bg-brand-black/10 p-3 rounded-2xl group-hover:translate-x-1 transition-transform">
+              <Plus size={20} />
+            </div>
+          </button>
+
+          <div className="bg-brand-primary p-6 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
             <div className="relative z-10">
               <div className="text-xs opacity-70 uppercase font-black tracking-widest mb-1">Vendas do Mês</div>
               <div className="text-4xl font-black">R$ {monthTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -117,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
                 {latestSaleId && (
                   <button 
                     onClick={() => handleOpenReceipt(latestSaleId, 'fiscal')}
-                    className="text-[9px] font-black uppercase bg-white text-indigo-600 px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md active:scale-95 transition-all"
+                    className="text-[9px] font-black uppercase bg-white text-brand-primary px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md active:scale-95 transition-all"
                   >
                     <Printer size={10} /> Último Recibo
                   </button>
@@ -129,7 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white border border-gray-100 p-4 rounded-3xl shadow-sm">
-              <div className="flex items-center gap-2 text-indigo-500 mb-2">
+              <div className="flex items-center gap-2 text-brand-primary mb-2">
                 <Calendar size={16} />
                 <span className="text-[10px] font-black uppercase tracking-wider">Hoje</span>
               </div>
@@ -180,9 +202,9 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between">
               <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ticket Médio</div>
-              <div className="text-2xl font-black text-indigo-600">R$ {stats.ticketMedio.toFixed(2)}</div>
-              <div className="mt-2 h-1 w-full bg-indigo-100 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-600" style={{ width: '65%' }}></div>
+              <div className="text-2xl font-black text-brand-primary">R$ {stats.ticketMedio.toFixed(2)}</div>
+              <div className="mt-2 h-1 w-full bg-brand-primary/10 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-primary" style={{ width: '65%' }}></div>
               </div>
             </div>
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between">
@@ -194,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
 
           <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
             <div className="flex items-center gap-2 px-1">
-              <Users size={18} className="text-indigo-600" />
+              <Users size={18} className="text-brand-primary" />
               <h3 className="text-sm font-black uppercase text-gray-800 tracking-tight">Performance da Equipe</h3>
             </div>
             
@@ -208,11 +230,11 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
                         <div className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400">#{index+1}</div>
                         <span className="text-xs font-black text-gray-700 capitalize">{seller}</span>
                       </div>
-                      <span className="text-xs font-black text-indigo-600">R$ {amount.toLocaleString('pt-BR')}</span>
+                      <span className="text-xs font-black text-brand-primary">R$ {amount.toLocaleString('pt-BR')}</span>
                     </div>
                     <div className="h-3 w-full bg-gray-50 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-indigo-500 rounded-full transition-all duration-1000" 
+                        className="h-full bg-brand-primary/60 rounded-full transition-all duration-1000" 
                         style={{ width: `${percentage}%` }}
                       ></div>
                     </div>
@@ -224,13 +246,13 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
             </div>
           </div>
 
-          <div className="bg-indigo-900 p-6 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between">
+          <div className="bg-brand-primary/90 p-6 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between">
             <div className="space-y-1">
               <div className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">Custo de Operação</div>
               <div className="text-2xl font-black">R$ {stats.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
             </div>
             <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-              <DollarSign size={24} className="text-indigo-300" />
+              <DollarSign size={24} className="text-blue-300" />
             </div>
           </div>
         </div>
@@ -243,7 +265,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
             sales.slice(0, 5).map(sale => (
               <div key={sale.id} className="p-4 flex justify-between items-center active:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                  <div className="w-10 h-10 bg-brand-primary/5 rounded-2xl flex items-center justify-center text-brand-primary">
                     <TrendingUp size={16} />
                   </div>
                   <div>
@@ -254,8 +276,8 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="font-black text-indigo-600 text-sm">R$ {sale.total.toFixed(2)}</div>
-                  <button onClick={() => handleOpenReceipt(sale.id, 'fiscal')} className="p-2 text-gray-300 hover:text-indigo-600 bg-gray-50 rounded-xl">
+                  <div className="font-black text-brand-primary text-sm">R$ {sale.total.toFixed(2)}</div>
+                  <button onClick={() => handleOpenReceipt(sale.id, 'fiscal')} className="p-2 text-gray-300 hover:text-brand-primary bg-gray-50 rounded-xl">
                     <Printer size={16} />
                   </button>
                 </div>
@@ -272,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales, budgets }) => {
       {selectedSaleId && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-5 bg-indigo-600 text-white flex justify-between items-center">
+            <div className="p-5 bg-brand-primary text-white flex justify-between items-center">
               <h3 className="font-black text-sm uppercase tracking-widest">Imprimir Recibo</h3>
               <button onClick={() => setSelectedSaleId(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
                 <X size={20} />

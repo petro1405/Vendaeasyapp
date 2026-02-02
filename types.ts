@@ -34,6 +34,7 @@ export interface Product {
   category: string;
   allowDiscount?: boolean;
   maxDiscountPercent?: number;
+  createdAt?: string;
 }
 
 export interface Customer {

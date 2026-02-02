@@ -6,7 +6,7 @@ import Receipt from '../components/Receipt';
 import { 
   X, 
   Calendar, 
-  User, 
+  User as UserIcon, 
   ChevronRight, 
   Filter, 
   Search, 
@@ -15,7 +15,12 @@ import {
   Printer, 
   CreditCard,
   FileDown,
-  ChevronDown
+  ChevronDown,
+  Trash2,
+  Lock,
+  AlertTriangle,
+  Loader2,
+  UserCheck
 } from 'lucide-react';
 
 interface SalesHistoryProps {
@@ -28,6 +33,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   
+  // Deletion States
+  const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   // Filter states
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
@@ -50,6 +62,43 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
   const handleOpenReceipt = (saleId: string, type: ReceiptType = 'fiscal') => {
     setInitialType(type);
     setSelectedSaleId(saleId);
+  };
+
+  const isDeletable = (saleDate: string) => {
+    const saleTime = new Date(saleDate).getTime();
+    const currentTime = Date.now();
+    const twelveHoursInMs = 12 * 60 * 60 * 1000;
+    return (currentTime - saleTime) < twelveHoursInMs;
+  };
+
+  const handleDeleteConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeleteError('');
+    
+    if (!adminUsername || !adminPassword) {
+      setDeleteError('Informe o usuário e senha do administrador.');
+      return;
+    }
+
+    if (!saleToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const authResult = await db.authenticateAdmin(adminUsername, adminPassword);
+      
+      if (authResult.success) {
+        await db.deleteSale(saleToDelete);
+        setSaleToDelete(null);
+        setAdminUsername('');
+        setAdminPassword('');
+      } else {
+        setDeleteError(authResult.message);
+      }
+    } catch (err) {
+      setDeleteError('Erro na autenticação. Tente novamente.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredSales = sales.filter(sale => {
@@ -100,7 +149,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
         </div>
       </div>
 
-      {/* ÁREA DE IMPRESSÃO DO RELATÓRIO (PDF/A4) */}
+      {/* ÁREA DE IMPRESSÃO DO RELATÓRIO */}
       <div id="printable-area" className="hidden print:block p-8 bg-white text-black font-sans min-h-screen">
         <div className="flex justify-between items-start border-b-4 border-black pb-6 mb-8">
           <div>
@@ -152,10 +201,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
             ))}
           </tbody>
         </table>
-
-        <div className="mt-20 pt-10 border-t-2 border-dashed border-gray-300 text-center">
-          <p className="text-xs font-bold opacity-40 uppercase tracking-widest">Fim do Relatório • VendaEasy Gestor</p>
-        </div>
       </div>
 
       {/* Resumo Dinâmico (UI) */}
@@ -204,31 +249,44 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
       
       {/* Sales List */}
       <div className="space-y-3 pb-8">
-        {filteredSales.map(sale => (
-          <div 
-            key={sale.id}
-            className="w-full bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between text-left transition-all active:scale-[0.98]"
-            onClick={() => handleOpenReceipt(sale.id, 'fiscal')}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex flex-col items-center justify-center text-indigo-600">
-                <span className="text-[9px] font-black uppercase">{new Date(sale.date).toLocaleString('pt-BR', { month: 'short' })}</span>
-                <span className="text-base font-black leading-none">{new Date(sale.date).getDate()}</span>
+        {filteredSales.map(sale => {
+          const deletable = isDeletable(sale.date);
+          return (
+            <div 
+              key={sale.id}
+              className="w-full bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between text-left transition-all active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-4 flex-1" onClick={() => handleOpenReceipt(sale.id, 'fiscal')}>
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex flex-col items-center justify-center text-indigo-600 shrink-0">
+                  <span className="text-[9px] font-black uppercase">{new Date(sale.date).toLocaleString('pt-BR', { month: 'short' })}</span>
+                  <span className="text-base font-black leading-none">{new Date(sale.date).getDate()}</span>
+                </div>
+                <div>
+                  <div className="font-black text-gray-800 text-sm truncate w-32">{sale.customerName}</div>
+                  <div className="text-[9px] text-gray-400 font-bold uppercase">{new Date(sale.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • {sale.sellerUsername}</div>
+                </div>
               </div>
-              <div>
-                <div className="font-black text-gray-800 text-sm truncate w-32">{sale.customerName}</div>
-                <div className="text-[9px] text-gray-400 font-bold uppercase">{new Date(sale.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • {sale.sellerUsername}</div>
+              <div className="flex items-center gap-3">
+                <div className="text-right" onClick={() => handleOpenReceipt(sale.id, 'fiscal')}>
+                  <div className="font-black text-indigo-600 text-sm">R$ {sale.total.toFixed(2)}</div>
+                  <div className="text-[8px] text-gray-300 font-black uppercase">#{sale.id.split('-').pop()}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {deletable && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setSaleToDelete(sale.id); }}
+                      className="p-2 text-red-300 hover:text-red-500 bg-red-50 rounded-xl transition-colors"
+                      title="Excluir venda (dentro de 12h)"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  <ChevronRight size={16} className="text-gray-200" onClick={() => handleOpenReceipt(sale.id, 'fiscal')} />
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-black text-indigo-600 text-sm">R$ {sale.total.toFixed(2)}</div>
-                <div className="text-[8px] text-gray-300 font-black uppercase">#{sale.id.split('-').pop()}</div>
-              </div>
-              <ChevronRight size={16} className="text-gray-200" />
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         {filteredSales.length === 0 && (
           <div className="text-center py-20 text-gray-400 flex flex-col items-center gap-4">
@@ -239,6 +297,78 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
           </div>
         )}
       </div>
+
+      {/* Modal de Confirmação de Exclusão com Autenticação de Admin */}
+      {saleToDelete && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+            <div className="p-6 bg-red-600 text-white text-center space-y-2">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                <UserCheck size={32} />
+              </div>
+              <h3 className="font-black text-lg uppercase tracking-widest">Autorização Admin</h3>
+              <p className="text-[10px] font-bold uppercase opacity-80">A exclusão exige validação de um administrador.</p>
+            </div>
+            
+            <form onSubmit={handleDeleteConfirm} className="p-6 space-y-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Usuário Admin</label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                    <input 
+                      type="text"
+                      required
+                      placeholder="Login do Administrador"
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-red-500 font-bold"
+                      value={adminUsername}
+                      onChange={(e) => setAdminUsername(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Senha Admin</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                    <input 
+                      type="password"
+                      required
+                      placeholder="Senha do Administrador"
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-red-500 font-bold"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {deleteError && (
+                <div className="p-3 bg-red-50 text-red-500 text-[10px] font-black uppercase text-center rounded-xl border border-red-100">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="button"
+                  onClick={() => { setSaleToDelete(null); setAdminUsername(''); setAdminPassword(''); setDeleteError(''); }}
+                  className="flex-1 py-4 text-xs font-black text-gray-400 uppercase bg-gray-50 rounded-2xl active:scale-95 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isDeleting}
+                  className="flex-1 py-4 text-xs font-black text-white bg-red-600 rounded-2xl shadow-xl shadow-red-100 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? <Loader2 className="animate-spin" size={16} /> : "Autorizar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {selectedSaleId && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">

@@ -100,7 +100,14 @@ const App: React.FC = () => {
   const renderScreen = () => {
     switch (activeTab) {
       case AppTab.DASHBOARD:
-        return <Dashboard products={products} sales={sales} budgets={budgets} />;
+        return (
+          <Dashboard 
+            products={products} 
+            sales={sales} 
+            budgets={budgets} 
+            onNavigateToSale={() => setActiveTab(AppTab.NEW_SALE)}
+          />
+        );
       case AppTab.INVENTORY:
         return <Inventory products={products} onUpdate={() => {}} currentUser={currentUser} />;
       case AppTab.CUSTOMERS:
@@ -122,7 +129,7 @@ const App: React.FC = () => {
       case AppTab.SETTINGS:
         return <Settings onUpdate={() => {}} onLogout={handleLogout} />;
       default:
-        return <Dashboard products={products} sales={sales} budgets={budgets} />;
+        return <Dashboard products={products} sales={sales} budgets={budgets} onNavigateToSale={() => setActiveTab(AppTab.NEW_SALE)} />;
     }
   };
 

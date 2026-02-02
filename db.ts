@@ -59,6 +59,25 @@ export const db = {
     }
   },
 
+  authenticateAdmin: async (username: string, pass: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const sanitizedUsername = username.trim().toLowerCase();
+      const email = `${sanitizedUsername}@venda-easy.com`;
+      
+      // Tentativa de login para validar credenciais
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const userDoc = await getDoc(doc(firestore, COLLECTIONS.USERS, userCredential.user.uid));
+      const userData = userDoc.data() as User;
+      
+      if (userData && userData.role === 'admin') {
+        return { success: true, message: 'Autenticado com sucesso.' };
+      }
+      return { success: false, message: 'Este usuário não possui privilégios de administrador.' };
+    } catch (error: any) {
+      return { success: false, message: 'Usuário ou senha de administrador inválidos.' };
+    }
+  },
+
   registerUser: async (userData: any): Promise<{ success: boolean, message: string }> => {
     try {
       const sanitizedUsername = userData.username.trim().toLowerCase().replace(/\s+/g, '');
@@ -86,7 +105,7 @@ export const db = {
     try {
       const credential = EmailAuthProvider.credential(user.email, currentPass);
       await reauthenticateWithCredential(user, credential);
-      const newPass = namePass; // Fixed variable name issue
+      const newPass = namePass; 
       await updatePassword(user, newPass);
       return { success: true, message: "Senha alterada com sucesso!" };
     } catch (error: any) {
@@ -98,15 +117,11 @@ export const db = {
   requestPasswordReset: async (username: string): Promise<{ success: boolean, message: string }> => {
     try {
       const sanitizedUsername = username.trim().toLowerCase();
-      
-      // Criamos o documento sem ler nada antes (operação cega de escrita)
-      // Isso minimiza erros de permissão se as regras do Firestore estiverem corretas para 'create'.
       await addDoc(collection(firestore, COLLECTIONS.RESET_REQUESTS), {
         username: sanitizedUsername,
         date: new Date().toISOString(),
         status: 'pending'
       });
-      
       return { success: true, message: "Solicitação enviada com sucesso! O administrador autorizará em breve." };
     } catch (error: any) {
       console.error("Erro crítico ao solicitar reset no Firestore:", error);
@@ -187,7 +202,7 @@ export const db = {
   subscribeSales: (callback: (sales: Sale[]) => void, sellerUsername?: string) => {
     const q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      let sales = snapshot.docs.map(doc => doc.data() as Sale);
+      let sales = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Sale));
       if (sellerUsername) {
         sales = sales.filter(s => s.sellerUsername === sellerUsername);
       }
@@ -222,7 +237,10 @@ export const db = {
 
   // --- ACTIONS ---
   addProduct: async (product: Omit<Product, 'id'>) => {
-    await addDoc(collection(firestore, COLLECTIONS.PRODUCTS), product);
+    await addDoc(collection(firestore, COLLECTIONS.PRODUCTS), {
+      ...product,
+      createdAt: new Date().toISOString()
+    });
   },
 
   updateProduct: async (id: string | number, data: Partial<Product>) => {
@@ -262,6 +280,31 @@ export const db = {
         const newQty = Number((currentQty - item.quantity).toFixed(2));
         await updateDoc(prodRef, { stockQuantity: newQty });
       }
+    }
+  },
+
+  deleteSale: async (saleId: string) => {
+    const saleRef = doc(firestore, COLLECTIONS.SALES, saleId);
+    const saleSnap = await getDoc(saleRef);
+    
+    if (saleSnap.exists()) {
+      const saleData = saleSnap.data() as Sale;
+      const items = saleData.items || [];
+      
+      // Devolver estoque
+      for (const item of items) {
+        const prodRef = doc(firestore, COLLECTIONS.PRODUCTS, String(item.productId));
+        const prodSnap = await getDoc(prodRef);
+        if (prodSnap.exists()) {
+          const currentQty = prodSnap.data().stockQuantity || 0;
+          await updateDoc(prodRef, { 
+            stockQuantity: Number((currentQty + item.quantity).toFixed(2)) 
+          });
+        }
+      }
+      
+      // Deletar venda
+      await deleteDoc(saleRef);
     }
   },
 
@@ -311,14 +354,7 @@ export const db = {
     const shopInfo = await db.getShopInfo();
     const products = await db.getProducts();
     const sales = await db.getSales();
-    
-    const exportObj = {
-      shopInfo,
-      products,
-      sales,
-      exportDate: new Date().toISOString()
-    };
-
+    const exportObj = { shopInfo, products, sales, exportDate: new Date().toISOString() };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -337,7 +373,7 @@ export const db = {
   getSales: async (sellerUsername?: string): Promise<Sale[]> => {
     const q = query(collection(firestore, COLLECTIONS.SALES), orderBy('date', 'desc'));
     const snapshot = await getDocs(q);
-    let sales = snapshot.docs.map(doc => doc.data() as Sale);
+    let sales = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Sale));
     if (sellerUsername) {
       sales = sales.filter(s => s.sellerUsername === sellerUsername);
     }
