@@ -4,7 +4,7 @@ import { Product, User as UserType } from '../types';
 import { db } from '../db';
 import SmartScanner from '../components/SmartScanner';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles, Pencil, Percent, ShieldCheck, ShieldAlert, FileText, CheckCircle2, AlertTriangle, Loader2, Hash, Keyboard, QrCode } from 'lucide-react';
+import { Search, Plus, Minus, Check, Package, Layers, X, Lock, Camera, Sparkles, Pencil, Percent, ShieldCheck, ShieldAlert, FileText, CheckCircle2, AlertTriangle, Loader2, Hash, Keyboard, QrCode, ToggleLeft as Toggle, ToggleRight } from 'lucide-react';
 
 interface InventoryProps {
   products: Product[];
@@ -41,6 +41,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
   const [formPrice, setFormPrice] = useState('');
   const [formCostPrice, setFormCostPrice] = useState('');
   const [formInitialStock, setFormInitialStock] = useState('');
+  const [formAllowDiscount, setFormAllowDiscount] = useState(true);
+  const [formMaxDiscount, setFormMaxDiscount] = useState('10');
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -76,8 +78,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
       price: parseFloat(formPrice),
       costPrice: parseFloat(formCostPrice) || 0,
       stockQuantity: parseFloat(formInitialStock) || 0,
-      allowDiscount: true,
-      maxDiscountPercent: 10
+      allowDiscount: formAllowDiscount,
+      maxDiscountPercent: parseFloat(formMaxDiscount) || 0
     };
 
     try {
@@ -101,6 +103,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
     setFormPrice(p.price.toString());
     setFormCostPrice(p.costPrice?.toString() || '');
     setFormInitialStock(p.stockQuantity.toString());
+    setFormAllowDiscount(p.allowDiscount ?? true);
+    setFormMaxDiscount((p.maxDiscountPercent ?? 10).toString());
     setIsEditModalOpen(true);
   };
 
@@ -198,6 +202,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
 
   const closeModals = () => {
     setFormName(''); setFormCategory(''); setFormPrice(''); setFormCostPrice(''); setFormInitialStock('');
+    setFormAllowDiscount(true); setFormMaxDiscount('10');
     setIsAddModalOpen(false); setIsEditModalOpen(false); setShowImportSelector(false); setShowKeyInput(false);
   };
 
@@ -264,7 +269,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-800 text-sm">{product.name}</h3>
-                    <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
+                      {product.allowDiscount === false && (
+                        <span className="bg-red-50 text-red-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-red-100">Preço Fixo</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -316,7 +326,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
               <h3 className="font-black text-sm uppercase tracking-widest">{isEditModalOpen ? 'Editar Produto' : 'Novo Produto'}</h3>
               <button onClick={closeModals}><X size={20} /></button>
             </div>
-            <form onSubmit={handleProductSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleProductSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nome do Produto</label>
                 <input type="text" required className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" value={formName} onChange={(e) => setFormName(e.target.value)} />
@@ -331,6 +341,39 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                   <input type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" value={formCostPrice} onChange={(e) => setFormCostPrice(e.target.value)} />
                 </div>
               </div>
+              
+              {/* NOVOS CAMPOS DE DESCONTO */}
+              <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-800 uppercase">Permitir Desconto</label>
+                    <p className="text-[8px] text-gray-400 font-bold uppercase">Ativar botões de desconto na venda</p>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setFormAllowDiscount(!formAllowDiscount)}
+                    className={`transition-all ${formAllowDiscount ? 'text-brand-primary' : 'text-gray-300'}`}
+                  >
+                    {formAllowDiscount ? <ToggleRight size={32} /> : <Toggle size={32} />}
+                  </button>
+                </div>
+                
+                {formAllowDiscount && (
+                  <div className="space-y-1 animate-in slide-in-from-top-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Desconto Máximo (%)</label>
+                    <div className="relative">
+                      <Percent className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                      <input 
+                        type="number" 
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary" 
+                        value={formMaxDiscount} 
+                        onChange={(e) => setFormMaxDiscount(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Estoque Inicial</label>
                 <input type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-black outline-none focus:ring-2 focus:ring-brand-primary" value={formInitialStock} onChange={(e) => setFormInitialStock(e.target.value)} />
