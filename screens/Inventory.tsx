@@ -454,7 +454,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdate, currentUser }
                 </div>
                 <div onClick={() => openEditModal(product)} className="cursor-pointer">
                   <h3 className="font-bold text-gray-800 text-sm uppercase">{product.name}</h3>
-                  <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">{product.category}</span>
+                    {product.allowDiscount && (
+                      <span className="flex items-center gap-0.5 text-[8px] font-black text-green-600 bg-green-50 px-1.5 py-0.5 rounded-md uppercase">
+                        <Percent size={8} strokeWidth={3} /> Desconto
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-right">

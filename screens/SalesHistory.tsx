@@ -20,7 +20,8 @@ import {
   Lock,
   AlertTriangle,
   Loader2,
-  UserCheck
+  UserCheck,
+  ShieldAlert
 } from 'lucide-react';
 
 interface SalesHistoryProps {
@@ -64,13 +65,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
     setSelectedSaleId(saleId);
   };
 
-  const isDeletable = (saleDate: string) => {
-    const saleTime = new Date(saleDate).getTime();
-    const currentTime = Date.now();
-    const twelveHoursInMs = 12 * 60 * 60 * 1000;
-    return (currentTime - saleTime) < twelveHoursInMs;
-  };
-
   const handleDeleteConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     setDeleteError('');
@@ -89,6 +83,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
       if (authResult.success) {
         await db.deleteSale(saleToDelete);
         setSaleToDelete(null);
+        setSelectedSaleId(null); // Fecha o detalhe se estiver aberto
         setAdminUsername('');
         setAdminPassword('');
       } else {
@@ -126,7 +121,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
           {filteredSales.length > 0 && (
             <button 
               onClick={handlePrintReport}
-              className="p-3 bg-white text-indigo-600 rounded-2xl border border-indigo-100 shadow-sm active:scale-95 transition-all flex items-center gap-2"
+              className="p-3 bg-white text-brand-primary rounded-2xl border border-brand-primary/10 shadow-sm active:scale-95 transition-all flex items-center gap-2"
             >
               <FileDown size={20} />
             </button>
@@ -135,13 +130,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
             onClick={() => setShowFilters(!showFilters)}
             className={`p-3 rounded-2xl border transition-all flex items-center gap-2 ${
               showFilters || activeFiltersCount > 0 
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' 
+              ? 'bg-brand-primary text-white border-brand-primary shadow-lg' 
               : 'bg-white text-gray-600 border-gray-200'
             }`}
           >
             <Filter size={20} />
             {activeFiltersCount > 0 && (
-              <span className="bg-white text-indigo-600 w-5 h-5 rounded-full text-[9px] flex items-center justify-center font-black">
+              <span className="bg-brand-action text-brand-black w-5 h-5 rounded-full text-[9px] flex items-center justify-center font-black">
                 {activeFiltersCount}
               </span>
             )}
@@ -149,62 +144,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
         </div>
       </div>
 
-      {/* ÁREA DE IMPRESSÃO DO RELATÓRIO */}
-      <div id="printable-area" className="hidden print:block p-8 bg-white text-black font-sans min-h-screen">
-        <div className="flex justify-between items-start border-b-4 border-black pb-6 mb-8">
-          <div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter">{shopInfo?.name}</h1>
-            <p className="text-sm font-bold opacity-70">CNPJ: {shopInfo?.cnpj}</p>
-            <p className="text-sm">{shopInfo?.address}</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-xl font-black uppercase">Relatório de Vendas</h2>
-            <p className="text-sm font-medium">Gerado em: {new Date().toLocaleString('pt-BR')}</p>
-            <p className="text-sm font-bold">Período: {filterStartDate || 'Início'} até {filterEndDate || 'Hoje'}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mb-10">
-          <div className="p-6 border-2 border-black rounded-2xl">
-            <p className="text-xs font-black uppercase opacity-60">Total Bruto</p>
-            <p className="text-3xl font-black">R$ {filteredTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-          </div>
-          <div className="p-6 border-2 border-black rounded-2xl">
-            <p className="text-xs font-black uppercase opacity-60">Qtd. Vendas</p>
-            <p className="text-3xl font-black">{filteredSales.length}</p>
-          </div>
-          <div className="p-6 border-2 border-black rounded-2xl">
-            <p className="text-xs font-black uppercase opacity-60">Ticket Médio</p>
-            <p className="text-3xl font-black">R$ {(filteredSales.length ? filteredTotal / filteredSales.length : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-          </div>
-        </div>
-
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b-2 border-black">
-              <th className="py-4 text-xs font-black uppercase">Data/Hora</th>
-              <th className="py-4 text-xs font-black uppercase">Cliente</th>
-              <th className="py-4 text-xs font-black uppercase">Vendedor</th>
-              <th className="py-4 text-xs font-black uppercase">Pagamento</th>
-              <th className="py-4 text-xs font-black uppercase text-right">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSales.map((sale, idx) => (
-              <tr key={sale.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-gray-50' : ''}`}>
-                <td className="py-4 text-xs font-medium">{new Date(sale.date).toLocaleString('pt-BR')}</td>
-                <td className="py-4 text-xs font-bold uppercase">{sale.customerName}</td>
-                <td className="py-4 text-xs font-medium capitalize">{sale.sellerUsername}</td>
-                <td className="py-4 text-xs font-medium uppercase">{sale.paymentMethod}</td>
-                <td className="py-4 text-xs font-black text-right">R$ {sale.total.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
       {/* Resumo Dinâmico (UI) */}
-      <div className="bg-indigo-600 p-5 rounded-[2.5rem] flex justify-between items-center text-white shadow-xl">
+      <div className="bg-brand-primary p-5 rounded-[2.5rem] flex justify-between items-center text-white shadow-xl">
         <div className="space-y-1">
           <div className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em]">Total Selecionado</div>
           <div className="text-3xl font-black">R$ {filteredTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -217,14 +158,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
 
       {/* Filter Pane */}
       {showFilters && (
-        <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-2xl space-y-4 animate-in slide-in-from-top-4">
+        <div className="bg-white p-6 rounded-[2.5rem] border border-brand-primary/10 shadow-2xl space-y-4 animate-in slide-in-from-top-4">
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Cliente</label>
               <input 
                 type="text"
                 placeholder="Nome do cliente..."
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-brand-primary outline-none"
                 value={filterCustomer}
                 onChange={(e) => setFilterCustomer(e.target.value)}
               />
@@ -242,7 +183,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
           </div>
           <div className="flex gap-2">
             <button onClick={clearFilters} className="flex-1 py-3 text-xs font-black text-gray-400 bg-gray-50 rounded-2xl uppercase">Limpar</button>
-            <button onClick={() => setShowFilters(false)} className="flex-2 py-3 text-xs font-black text-white bg-indigo-600 rounded-2xl shadow-lg uppercase">Ver Resultados</button>
+            <button onClick={() => setShowFilters(false)} className="flex-2 py-3 text-xs font-black text-white bg-brand-primary rounded-2xl shadow-lg uppercase">Ver Resultados</button>
           </div>
         </div>
       )}
@@ -250,39 +191,28 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
       {/* Sales List */}
       <div className="space-y-3 pb-8">
         {filteredSales.map(sale => {
-          const deletable = isDeletable(sale.date);
           return (
             <div 
               key={sale.id}
               className="w-full bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between text-left transition-all active:scale-[0.98]"
+              onClick={() => handleOpenReceipt(sale.id, 'fiscal')}
             >
-              <div className="flex items-center gap-4 flex-1" onClick={() => handleOpenReceipt(sale.id, 'fiscal')}>
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex flex-col items-center justify-center text-indigo-600 shrink-0">
+              <div className="flex items-center gap-4 flex-1">
+                <div className="w-12 h-12 bg-brand-primary/5 rounded-2xl flex flex-col items-center justify-center text-brand-primary shrink-0">
                   <span className="text-[9px] font-black uppercase">{new Date(sale.date).toLocaleString('pt-BR', { month: 'short' })}</span>
                   <span className="text-base font-black leading-none">{new Date(sale.date).getDate()}</span>
                 </div>
-                <div>
-                  <div className="font-black text-gray-800 text-sm truncate w-32">{sale.customerName}</div>
+                <div className="truncate pr-2">
+                  <div className="font-black text-gray-800 text-sm truncate uppercase">{sale.customerName}</div>
                   <div className="text-[9px] text-gray-400 font-bold uppercase">{new Date(sale.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • {sale.sellerUsername}</div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="text-right" onClick={() => handleOpenReceipt(sale.id, 'fiscal')}>
-                  <div className="font-black text-indigo-600 text-sm">R$ {sale.total.toFixed(2)}</div>
+                <div className="text-right">
+                  <div className="font-black text-brand-primary text-sm">R$ {sale.total.toFixed(2)}</div>
                   <div className="text-[8px] text-gray-300 font-black uppercase">#{sale.id.split('-').pop()}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {deletable && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setSaleToDelete(sale.id); }}
-                      className="p-2 text-red-300 hover:text-red-500 bg-red-50 rounded-xl transition-colors"
-                      title="Excluir venda (dentro de 12h)"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  <ChevronRight size={16} className="text-gray-200" onClick={() => handleOpenReceipt(sale.id, 'fiscal')} />
-                </div>
+                <ChevronRight size={16} className="text-gray-200" />
               </div>
             </div>
           );
@@ -298,9 +228,41 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
         )}
       </div>
 
+      {/* Modal de Detalhe da Venda */}
+      {selectedSaleId && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+            <div className="p-5 bg-brand-primary text-white flex justify-between items-center shrink-0">
+              <h3 className="font-black text-sm uppercase tracking-widest">Documento de Venda</h3>
+              <button onClick={() => setSelectedSaleId(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 no-scrollbar bg-gray-50/50">
+              <Receipt saleId={selectedSaleId} initialType={initialType} autoPrint={false} />
+              
+              <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col gap-3 no-print">
+                <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex gap-3 text-red-600">
+                  <ShieldAlert size={18} className="shrink-0" />
+                  <p className="text-[9px] font-black uppercase leading-tight">
+                    A exclusão é irreversível e exige autorização administrativa. Recomenda-se apenas para correções críticas.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSaleToDelete(selectedSaleId)}
+                  className="w-full py-4 bg-white text-red-500 border-2 border-red-100 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 size={16} /> Excluir Registro de Venda
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Confirmação de Exclusão com Autenticação de Admin */}
       {saleToDelete && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-md">
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-md">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
             <div className="p-6 bg-red-600 text-white text-center space-y-2">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -362,26 +324,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
                   disabled={isDeleting}
                   className="flex-1 py-4 text-xs font-black text-white bg-red-600 rounded-2xl shadow-xl shadow-red-100 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  {isDeleting ? <Loader2 className="animate-spin" size={16} /> : "Autorizar"}
+                  {isDeleting ? <Loader2 className="animate-spin" size={16} /> : "Autorizar Exclusão"}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {selectedSaleId && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-5 bg-indigo-600 text-white flex justify-between items-center">
-              <h3 className="font-black text-sm uppercase tracking-widest">Documento de Venda</h3>
-              <button onClick={() => setSelectedSaleId(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6 max-h-[75vh] overflow-y-auto no-scrollbar bg-gray-50/50">
-              <Receipt saleId={selectedSaleId} initialType={initialType} />
-            </div>
           </div>
         </div>
       )}
